@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lisa — Digital Workplace Concierge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.botframework.com/botframework-webchat/4.18.0/webchat.js"></script>
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+  <!-- config.js holds the real Direct Line endpoint and Speech key/region — it is listed in
+       .gitignore and never committed. See config.example.js for the required shape. -->
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ==============================================
+       TANDI LABORATORIES BRAND TOKENS
+       Sampled from CompanyBackground.jpg / CompanyLogoSquare(.png/Dark.png):
+       navy background ~#0A1E35, primary blue ~#1A6EBD, accent cyan ~#00D4E8.
+       --alert is a neutral functional colour for error states, not a brand colour.
+    =============================================== */
+    :root {
+      --tandi-navy: #0A1E35;
+      --tandi-navy-deep: #071321;
+      --tandi-blue: #1A6EBD;
+      --tandi-cyan: #00D4E8;
+      --tandi-white: #FFFFFF;
+      --off-white: #F4F6FB;
+      --text-muted: #6B7A99;
+      --border: rgba(10, 30, 53, 0.1);
+      --alert: #E2574C;
+
+      /* Aliases kept so this file reads 1:1 against Marge's stylesheet for anyone
+         diffing the two — same roles, TANDI's own values. */
+      --nightshade: var(--tandi-navy);
+      --nightshade-dark: var(--tandi-navy-deep);
+      --cobalt: var(--tandi-blue);
+      --turquoise: var(--tandi-cyan);
+      --poppy: var(--alert);
+      --white: var(--tandi-white);
+    }
+
+    html { height: 100%; }
+
+    body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--off-white);
+      color: var(--nightshade);
+    }
+
+    /* ==============================================
+       MOBILE LAYOUT (default)
+    =============================================== */
+    .shell {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      height: 100svh; /* small viewport height — accounts for mobile browser chrome */
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    /* Hide desktop-only elements on mobile */
+    .sidebar { display: none; }
+
+    /* ── MOBILE HEADER ── */
+    .header {
+      background: var(--nightshade);
+      padding: 0 20px;
+      flex-shrink: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -40px; right: -50px;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: var(--cobalt);
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -30px; right: 60px;
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: var(--turquoise);
+      opacity: 0.18;
+      pointer-events: none;
+    }
+
+    .header-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+    }
+
+    .logo-wrap { flex-shrink: 0; display: flex; align-items: center; }
+
+    /* Icon mark ships with its own navy fill (tandi-mark-dark.png), so it sits
+       flush against the navy header/sidebar with no visible edge. */
+    .logo-mark {
+      height: 30px;
+      width: 30px;
+      border-radius: 7px;
+      display: block;
+    }
+
+    /* The TANDI wordmark is set as real text rather than the supplied white-
+       background PNG, so it reads cleanly on navy at any size/DPI — matching
+       how it appears on TANDI's own hero art rather than showing a white box. */
+    .logo-word {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .logo-word-main {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--white);
+    }
+    .logo-word-sub {
+      font-size: 7px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      color: var(--turquoise);
+      margin-top: 2px;
+    }
+
+    .header-divider {
+      width: 1px;
+      height: 32px;
+      background: rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+
+    .header-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .room-label {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--turquoise);
+      margin-bottom: 2px;
+    }
+
+    .room-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--white);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .room-id-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-family: 'DM Mono', monospace;
+      color: rgba(255,255,255,0.65);
+      white-space: nowrap;
+    }
+
+    .room-id-badge::before {
+      content: '';
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--cobalt);
+      flex-shrink: 0;
+    }
+
+    /* Shown only once a location context resolves (see hasLocationContext in JS) */
+    .room-id-badge { display: none; }
+    .room-id-badge.visible { display: inline-flex; }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--turquoise);
+      box-shadow: 0 0 0 3px rgba(0,212,232,0.25);
+      animation: pulse 2.5s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(0,212,232,0.25); }
+      50%       { box-shadow: 0 0 0 7px rgba(0,212,232,0.08); }
+    }
+
+    /* ── CHAT CONTAINER — direct child of .shell, visible on all viewports ── */
+    .chat-container {
+      flex: 1 1 0;
+      overflow: hidden;
+      position: relative;
+      background: var(--off-white);
+      min-height: 0;
+      max-height: 100%;
+    }
+
+    #webchat {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    /* While voice mode is active, #webchat is genuinely resized to the
+       visible bottom strip rather than just visually covered — Web
+       Chat's own scroll container needs its real rendered height to
+       scroll correctly, not a full-height element with the top part
+       hidden behind the overlay. */
+    #webchat.voice-split {
+      position: absolute;
+      top: calc(40% + 1px);
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: auto;
+      font-size: 13px;
+    }
+
+    /* ── VOICE MODE TOGGLE (floats over chat-container, all viewports) ── */
+    .voice-toggle {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--nightshade);
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(10,30,53,0.25);
+    }
+
+    .voice-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* ── VOICE MODE OVERLAY ── */
+    .voice-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      z-index: 15;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--nightshade);
+      padding: 0 28px;
+      box-shadow: 0 8px 20px rgba(10,30,53,0.35);
+    }
+
+    .voice-overlay.active { display: flex; }
+
+    .voice-transcript-label {
+      position: absolute;
+      z-index: 16;
+      right: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: var(--off-white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 3px 9px;
+      display: none;
+    }
+
+    .voice-transcript-label.active { display: block; }
+
+    .voice-exit {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      color: var(--turquoise);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .voice-exit svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    .voice-orb-wrap {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .voice-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,212,232,0.5);
+    }
+
+    .voice-ring.r1 { width: 88px; height: 88px; }
+    .voice-ring.r2 { width: 66px; height: 66px; }
+
+    .voice-core {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--cobalt);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.25s;
+    }
+
+    .voice-core svg { width: 18px; height: 18px; }
+
+    @keyframes voicePulseRing {
+      0%   { transform: scale(0.9); opacity: 0.9; }
+      70%  { transform: scale(1.15); opacity: 0; }
+      100% { transform: scale(1.15); opacity: 0; }
+    }
+
+    @keyframes voicePulseSpeak {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+
+    @keyframes voiceSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    .voice-status {
+      text-align: center;
+    }
+
+    .voice-status-main {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .voice-status-sub {
+      color: rgba(255,255,255,0.45);
+      font-size: 12px;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .voice-image-card {
+      display: none;
+      width: 100%;
+      max-width: 340px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 10px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .voice-image-card.visible { display: flex; }
+
+    .voice-image-card img {
+      width: 56px;
+      height: 56px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .voice-image-card-text {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.4;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* ── PERSISTENT CHAT TYPING DOTS ── */
+    /* Guarantees a minimum gap between the last message and the composer,
+       so the fixed-position typing indicator always has room to sit above
+       the composer without ever overlapping the last message's timestamp
+       (short transcript) or the composer itself (tight layouts). Using a
+       stable, non-hashed Web Chat class name — the CSS-in-JS hashed
+       classes on the same element aren't safe to target directly. */
+    #webchat .webchat__basic-transcript__scrollable {
+      padding-bottom: 40px !important;
+    }
+
+    #persistent-chat-dots {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 64px;
+      height: 28px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 10px;
+      background: #FFFFFF;
+      border: 1px solid rgba(10,30,53,0.10);
+      border-radius: 16px;
+      box-shadow: 0 2px 8px rgba(10,30,53,0.12);
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    #persistent-chat-dots.visible {
+      display: flex;
+    }
+
+    #persistent-chat-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--turquoise);
+      animation: persistentDotBounce 1.2s ease-in-out infinite;
+    }
+
+    #persistent-chat-dots span:nth-child(2) { animation-delay: 0.15s; }
+    #persistent-chat-dots span:nth-child(3) { animation-delay: 0.30s; }
+
+    @keyframes persistentDotBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
+      30% { transform: translateY(-3px); opacity: 1; }
+    }
+
+    /* ── LOADING ── */
+    .loading-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--off-white);
+      gap: 16px;
+      z-index: 10;
+      transition: opacity 0.4s;
+    }
+    .loading-screen.greeting {
+      align-items: flex-start;
+      justify-content: flex-start;
+      flex-direction: row;
+      padding: 20px;
+      gap: 12px;
+    }
+    .greeting-avatar img {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .greeting-bubble {
+      background: #FFFFFF;
+      color: var(--nightshade);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      max-width: 480px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .loading-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(10,30,53,0.12);
+      border-top-color: var(--cobalt);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* ── ERROR ── */
+    .error-screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--off-white);
+      gap: 12px;
+      padding: 40px 32px;
+      text-align: center;
+      z-index: 10;
+    }
+
+    .error-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: #FCEAE8;
+      border: 1px solid var(--alert);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      color: var(--alert);
+      font-weight: 600;
+    }
+
+    .error-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--nightshade);
+    }
+
+    .error-msg {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 320px;
+    }
+
+    .error-action {
+      margin-top: 8px;
+      padding: 10px 24px;
+      background: var(--cobalt);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* ── MOBILE FOOTER ── */
+    .footer {
+      background: var(--white);
+      border-top: 1px solid var(--border);
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+
+    .footer-text {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .it-support-btn {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--cobalt);
+      background: none;
+      border: 1px solid rgba(26,110,189,0.4);
+      border-radius: 6px;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      text-decoration: none;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .it-support-btn:hover {
+      background: var(--cobalt);
+      color: white;
+      border-color: var(--cobalt);
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+
+    /* ==============================================
+       TABLET (600-899px) — centred card
+    =============================================== */
+    @media (min-width: 600px) and (max-width: 899px) {
+      body {
+        background: var(--nightshade);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        overflow: hidden;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 520px;
+        height: calc(100vh - 48px);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      }
+    }
+
+    /* ==============================================
+       DESKTOP (>= 900px) — two-column grid
+       Body backdrop uses TANDI's own hero art (tandi-background.jpg) so the
+       chat shell reads as sitting inside the brand world, not a flat fill.
+    =============================================== */
+    @media (min-width: 900px) {
+
+      body {
+        background:
+          linear-gradient(rgba(7,19,33,0.72), rgba(7,19,33,0.82)),
+          url('tandi-background.jpg') center / cover no-repeat fixed;
+        overflow: hidden;
+      }
+
+      /* Grid: sidebar | chat-container */
+      .shell {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        grid-template-rows: 1fr;
+        height: 100vh;
+        max-width: 1200px;
+        margin: 0 auto;
+        box-shadow: 0 0 80px rgba(0,0,0,0.4);
+        flex-direction: unset;
+      }
+
+      /* Sidebar fills the left column */
+      .sidebar {
+        display: flex !important;
+        grid-column: 1;
+        grid-row: 1;
+        flex-direction: column;
+        background: var(--nightshade);
+        padding: 40px 32px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .sidebar::before {
+        content: '';
+        position: absolute;
+        top: -60px; left: -60px;
+        width: 260px; height: 260px;
+        border-radius: 50%;
+        background: var(--cobalt);
+        opacity: 0.12;
+        pointer-events: none;
+      }
+
+      .sidebar::after {
+        content: '';
+        position: absolute;
+        bottom: 60px; right: -40px;
+        width: 180px; height: 180px;
+        border-radius: 50%;
+        background: var(--turquoise);
+        opacity: 0.1;
+        pointer-events: none;
+      }
+
+      .sidebar-content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 48px;
+      }
+
+      .sidebar-logo-mark {
+        height: 32px;
+        width: 32px;
+        border-radius: 8px;
+        display: block;
+        flex-shrink: 0;
+      }
+
+      .sidebar-logo-word { line-height: 1; }
+      .sidebar-logo-word-main {
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--white);
+      }
+      .sidebar-logo-word-sub {
+        font-size: 8px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        color: var(--turquoise);
+        margin-top: 2px;
+      }
+
+      .sidebar-room-label {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--turquoise);
+        margin-bottom: 8px;
+      }
+
+      .sidebar-room-name {
+        font-size: 26px;
+        font-weight: 600;
+        color: var(--white);
+        line-height: 1.2;
+        margin-bottom: 12px;
+      }
+
+      .sidebar-room-id {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-family: 'DM Mono', monospace;
+        color: rgba(255,255,255,0.6);
+        margin-bottom: 40px;
+      }
+
+      .sidebar-room-id.visible { display: inline-flex; }
+
+      .sidebar-room-id::before {
+        content: '';
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--cobalt);
+        flex-shrink: 0;
+      }
+
+      .sidebar-divider {
+        width: 40px; height: 2px;
+        background: rgba(0,212,232,0.4);
+        border-radius: 2px;
+        margin-bottom: 32px;
+      }
+
+      /* Sits directly under the brand lockup when no location badge is shown
+         (personal/mobile default — see .sidebar-room-id.visible above) */
+      .sidebar-room-name + .sidebar-divider { margin-top: 0; }
+
+      .sidebar-hint {
+        font-size: 13px;
+        color: rgba(255,255,255,0.45);
+        line-height: 1.7;
+        margin-bottom: 8px;
+      }
+
+      .sidebar-topics {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: auto;
+      }
+
+      .sidebar-topic {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px;
+        font-size: 13px;
+        color: rgba(255,255,255,0.75);
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: 'DM Sans', sans-serif;
+        text-align: left;
+      }
+
+      .sidebar-topic:hover {
+        background: rgba(26,110,189,0.25);
+        border-color: rgba(26,110,189,0.4);
+        color: white;
+      }
+
+      .topic-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--turquoise);
+        opacity: 0.6;
+        flex-shrink: 0;
+      }
+
+      .sidebar-footer {
+        margin-top: 40px;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .sidebar-support-btn {
+        font-size: 12px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.6);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 8px 14px;
+        cursor: pointer;
+        font-family: 'DM Sans', sans-serif;
+        text-decoration: none;
+        transition: all 0.15s;
+        text-align: center;
+      }
+
+      .sidebar-support-btn:hover {
+        background: rgba(255,255,255,0.12);
+        color: white;
+      }
+
+      .sidebar-powered {
+        font-size: 10px;
+        color: rgba(255,255,255,0.25);
+        text-align: center;
+        letter-spacing: 0.03em;
+      }
+
+      /* Sidebar status row — connection state shown next to the avatar */
+      .sidebar-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: rgba(255,255,255,0.55);
+        margin-top: 4px;
+      }
+
+      .status-dot-sm {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--turquoise);
+        animation: pulse 2.5s infinite;
+        flex-shrink: 0;
+      }
+
+      /* Chat container — fills the whole right column */
+      .chat-container {
+        grid-column: 2;
+        grid-row: 1;
+        background: var(--off-white);
+        border-left: 1px solid rgba(255,255,255,0.06);
+      }
+
+      /* Hide mobile-only elements */
+      .header { display: none; }
+      .footer { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- MOBILE / TABLET HEADER (hidden on desktop) -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo-wrap">
+        <img src="tandi-mark-dark.png" alt="TANDI Laboratories" class="logo-mark" />
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-info">
+        <div class="room-label">Lisa</div>
+        <div class="room-name" id="roomNameMobile">Digital Workplace Concierge</div>
+      </div>
+      <div class="header-meta">
+        <div class="room-id-badge" id="roomIdBadgeMobile">--</div>
+        <div class="status-dot" id="statusDotMobile"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- DESKTOP SIDEBAR (hidden on mobile/tablet) -->
+  <aside class="sidebar">
+    <div class="sidebar-content">
+      <div class="sidebar-brand">
+        <img src="tandi-mark-dark.png" alt="TANDI Laboratories" class="sidebar-logo-mark" />
+        <div class="sidebar-logo-word">
+          <div class="sidebar-logo-word-main">TANDI</div>
+          <div class="sidebar-logo-word-sub">LABORATORIES</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:20px;">
+        <img src="tandi-mark-dark.png" alt="Lisa" style="width:72px; height:72px; border-radius:50%; border:2px solid rgba(0,212,232,0.4); background:#071321; padding:3px;" />
+        <div>
+          <div class="sidebar-room-label" style="margin-bottom:2px;">Lisa</div>
+          <div style="font-size:13px; color:rgba(255,255,255,0.55); line-height:1.3;">Location Intelligence &amp;<br>Scheduling Assistant</div>
+          <div class="sidebar-status">
+            <div class="status-dot-sm" id="statusDotDesktop"></div>
+            <span id="statusTextDesktop">Connecting...</span>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-room-name" id="roomNameDesktop">Digital Workplace Concierge</div>
+      <div class="sidebar-room-id" id="roomIdBadgeDesktop">--</div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-hint">Hi, I'm Lisa — your Digital Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
+
+      <div class="sidebar-topics">
+        <button class="sidebar-topic" onclick="sendQuickMessage('Who is visiting today?')">
+          <span class="topic-dot"></span>Who&#39;s visiting today?
+        </button>
+        <button class="sidebar-topic" onclick="sendQuickMessage('What is my next meeting?')">
+          <span class="topic-dot"></span>Check my next meeting
+        </button>
+        <button class="sidebar-topic" onclick="sendQuickMessage('I need help with a meeting room')">
+          <span class="topic-dot"></span>Help with a meeting room
+        </button>
+        <button class="sidebar-topic" onclick="sendQuickMessage('Can I book a desk for tomorrow?')">
+          <span class="topic-dot"></span>Book a desk
+        </button>
+        <button class="sidebar-topic" onclick="sendQuickMessage('Something is not working')">
+          <span class="topic-dot"></span>Something isn&#39;t working
+        </button>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="mailto:support@tandilab.com" class="sidebar-support-btn">Contact IT Support</a>
+        <div class="sidebar-powered">Lisa · Digital Workplace Concierge · TANDI Laboratories</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- SHARED CHAT CONTAINER (direct child of .shell — always visible) -->
+  <div class="chat-container">
+    <!-- Step 1: shown while Direct Line connects -->
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Connecting to Lisa...</div>
+    </div>
+
+
+    <div class="error-screen" id="errorScreen">
+      <div class="error-icon">!</div>
+      <div class="error-title">Lisa is unavailable</div>
+      <div class="error-msg">Lisa could not be reached. Please check your connection or contact IT support.</div>
+      <button class="error-action" onclick="location.reload()">Try again</button>
+    </div>
+
+    <button class="voice-toggle" id="voiceToggleBtn" onclick="enterVoiceMode()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      Switch to voice
+    </button>
+
+    <div id="webchat"></div>
+
+    <!-- Persistent typing indicator. Web Chat's native typing element is transient,
+         so this indicator is owned by the page and positioned against the send box. -->
+    <div id="persistent-chat-dots" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+
+    <!-- VOICE MODE OVERLAY -->
+    <div class="voice-overlay" id="voiceOverlay">
+      <button class="voice-exit" onclick="exitVoiceMode()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Switch to chat
+      </button>
+
+      <div class="voice-orb-wrap" id="voiceOrbWrap" onclick="handleOrbTap()">
+        <div class="voice-ring r1" id="voiceRing1"></div>
+        <div class="voice-ring r2" id="voiceRing2"></div>
+        <div class="voice-core" id="voiceCore">
+          <svg id="voiceOrbIcon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+        </div>
+      </div>
+
+      <div class="voice-status">
+        <div class="voice-status-main" id="voiceStatusMain">Ready when you are</div>
+        <div class="voice-status-sub" id="voiceStatusSub">Tap the orb to start talking</div>
+      </div>
+
+      <div class="voice-image-card" id="voiceImageCard">
+        <img id="voiceImageThumb" src="" alt="" />
+        <div class="voice-image-card-text" id="voiceImageCaption"></div>
+      </div>
+    </div>
+
+    <div class="voice-transcript-label" id="voiceTranscriptLabel" style="top: calc(40% + 8px);">Transcript</div>
+  </div>
+
+  <!-- MOBILE FOOTER (hidden on desktop) -->
+  <footer class="footer">
+    <span class="footer-text">Lisa by TANDI Laboratories</span>
+    <a href="mailto:support@tandilab.com" class="it-support-btn">IT Support</a>
+  </footer>
+
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+
+  // Lisa is a personal/mobile-first concierge (Extended Agent Architecture,
+  // Section 15) rather than a room kiosk, so location context is optional —
+  // present when this page is launched from a lobby/reception kiosk QR code,
+  // absent for the default personal-device case. Query params kept close to
+  // Marge's room_id/room_name naming for consistency across the two frontends.
+  const locationId   = params.get('location_id') || '';
+  const locationName = params.get('location_name') || '';
+  const hasLocationContext = Boolean(locationId || locationName);
+
+  const displayName = locationName || locationId || 'Digital Workplace Concierge';
+  const displayId   = locationId || '';
+
+  ['roomNameMobile', 'roomNameDesktop'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = displayName;
+  });
+
+  // The location badge only appears once real location context resolves —
+  // unlike Marge's room badge (always shown, defaulting to "Walk-in"), Lisa
+  // has no equivalent default: no location context just means "personal chat."
+  if (hasLocationContext) {
+    ['roomIdBadgeMobile', 'roomIdBadgeDesktop'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = displayId || displayName;
+        el.classList.add('visible');
+      }
+    });
+  }
+
+  // Token endpoint from Copilot Studio -> Settings -> Channels -> Custom website ->
+  // Token Endpoint. Loaded from config.js (see the <script src="config.js"> tag above),
+  // which is untracked — set the real value there, not here.
+  const TOKEN_ENDPOINT = window.LISA_CONFIG.TOKEN_ENDPOINT;
+
+  // Strips markdown syntax and emoji from a chunk of text so it reads
+  // naturally when spoken. Doesn't touch line structure — that's
+  // handled separately in buildSpeakableText.
+  function cleanMarkdownAndEmoji(text) {
+    return text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]*)`/g, '$1')
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/(\*\*\*|___)(.*?)\1/g, '$2')
+      .replace(/(\*\*|__)(.*?)\1/g, '$2')
+      .replace(/(\*|_)(.*?)\1/g, '$2')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^-{3,}\s*$/gm, '')
+      .replace(/\p{Extended_Pictographic}/gu, '')
+      .replace(/\uFE0F/g, '')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, ', ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
+  // Cuts text to roughly maxLen characters at the nearest sentence
+  // boundary rather than mid-word, so long informational answers don't
+  // ramble on when spoken aloud.
+  const MAX_SPOKEN_CHARS = 420;
+
+  function truncateAtSentence(text, maxLen) {
+    if (text.length <= maxLen) return text;
+    const slice = text.slice(0, maxLen);
+    const lastBreak = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+    return lastBreak > 40 ? slice.slice(0, lastBreak + 1) : slice + '...';
+  }
+
+  // Builds a clean, speakable version of a bot message. Concierge answers
+  // are often a conversational lead-in, a bulleted list (visitors, meeting
+  // rooms, next steps), and a closing offer of help — great to read on
+  // screen, tedious to hear item by item. We skip only the list itself and
+  // speak everything around it (both before AND after — a closing
+  // "here's what I can help with" sentence after the list is usually
+  // far more useful to say aloud than a generic "look at the list"
+  // filler). Set on activity.speak, which Web Chat prefers over
+  // deriving speech from the raw markdown text itself.
+  function buildSpeakableText(text) {
+    const lines = text.split('\n');
+    const isListLine = line => /^\s*(?:[-*+•]|\d+[.)])\s+/.test(line);
+
+    const listIndices = [];
+    lines.forEach((line, i) => { if (isListLine(line)) listIndices.push(i); });
+
+    if (listIndices.length === 0) {
+      return truncateAtSentence(cleanMarkdownAndEmoji(text), MAX_SPOKEN_CHARS);
+    }
+
+    let listStart = listIndices[0];
+    const listEnd = listIndices[listIndices.length - 1];
+
+    // Walk back past any blank lines and colon-ending heading lines
+    // immediately before the list (e.g. "Today's visitors:"), folding
+    // them into the skipped block too — otherwise a heading separated
+    // from its list by a blank line (very common in markdown) slips
+    // through and gets spoken as if it were part of the lead-in,
+    // dangling into nothing once the list itself is cut.
+    while (listStart > 0) {
+      const prevLine = lines[listStart - 1].trim();
+      if (prevLine === '' || prevLine.endsWith(':')) {
+        listStart -= 1;
+      } else {
+        break;
+      }
+    }
+
+    // Joined with '\n', not ' ', so cleanMarkdownAndEmoji's line-anchored
+    // rules (like heading marker stripping) still see real line breaks.
+    const before = cleanMarkdownAndEmoji(lines.slice(0, listStart).join('\n'));
+    const after = cleanMarkdownAndEmoji(lines.slice(listEnd + 1).join('\n'));
+
+    let spoken;
+    if (before && after) {
+      spoken = `${before} ${after}`;
+    } else if (after) {
+      spoken = after;
+    } else if (before) {
+      // If the lead-in itself still ends in a colon at this point, it's
+      // introducing something specific (e.g. a visitor list) that's about
+      // to be entirely skipped — leaving it dangling reads as a
+      // non-sequitur. A honest bridging phrase is better than silence on
+      // what was actually asked, though the real fix for content like
+      // this is generating an actual spoken version upstream, not
+      // skipping it client-side.
+      spoken = /:\s*$/.test(before)
+        ? `${before} I've laid the details out on screen for you to follow.`
+        : before;
+    } else {
+      spoken = `I've popped the details below, or ask me about anything specific.`;
+    }
+
+    return truncateAtSentence(spoken, MAX_SPOKEN_CHARS);
+  }
+
+  // Pulls the first markdown image URL out of a raw bot message, if any
+  // (e.g. a wayfinding map or a visitor's photo). Used by voice mode to
+  // show a supporting image alongside the spoken answer.
+  function extractImageUrl(text) {
+    const match = text.match(/!\[[^\]]*\]\(([^)]+)\)/);
+    return match ? match[1] : null;
+  }
+
+  // ── VOICE MODE ──
+  // Runs entirely independently of Web Chat's built-in speech ponyfill.
+  // Web Chat's own mic/TTS state machine deliberately won't open the
+  // mic while it's speaking (to avoid Lisa hearing her own voice), and
+  // that logic lives in React hooks (useStartDictate/useStopDictate)
+  // that aren't available in this plain-JS renderWebChat setup anyway.
+  // So voice mode drives its own turn-taking loop directly against the
+  // Azure Speech SDK: listen once -> send the recognized text into the
+  // same Direct Line conversation Web Chat is already connected to ->
+  // speak the reply -> listen again. The underlying Web Chat instance
+  // keeps running the whole time (just visually hidden), so the
+  // transcript stays in sync in the background for whenever the user
+  // switches back to chat view.
+  let voiceModeActive = false;
+  let lastBotSpokenText = null;
+  let lastBotImageUrl = null;
+
+  const VoiceController = {
+    speechConfig: null,
+    currentAudio: null,
+    activeRecognizer: null,
+    activeSynthesizer: null,
+
+    ensureConfigured() {
+      if (this.speechConfig || typeof SpeechSDK === 'undefined') return;
+      this.speechConfig = SpeechSDK.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
+      this.speechConfig.speechRecognitionLanguage = SPEECH_LOCALE;
+      this.speechConfig.speechSynthesisVoiceName = SPEECH_VOICE_NAME;
+      this.speechConfig.speechSynthesisOutputFormat = SpeechSDK.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+    },
+
+    setState(state, mainText, subText) {
+      const core = document.getElementById('voiceCore');
+      const ring1 = document.getElementById('voiceRing1');
+      const ring2 = document.getElementById('voiceRing2');
+      const icon = document.getElementById('voiceOrbIcon');
+      const main = document.getElementById('voiceStatusMain');
+      const sub = document.getElementById('voiceStatusSub');
+
+      main.textContent = mainText;
+      sub.textContent = subText;
+
+      // Reset ring border overrides every time so the thinking spinner's
+      // "transparent + top-color" trick doesn't leak into other states.
+      ring1.style.border = '';
+      ring2.style.border = '';
+
+      const MIC_ICON = '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>';
+      const DOTS_ICON = '<circle cx="6" cy="12" r="1.6" fill="#fff" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="#fff" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="#fff" stroke="none"/>';
+      const SPEAKER_ICON = '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>';
+
+      if (state === 'listening') {
+        icon.innerHTML = MIC_ICON;
+        core.style.background = 'var(--cobalt)';
+        ring1.style.animation = 'voicePulseRing 1.8s ease-out infinite';
+        ring2.style.animation = 'voicePulseRing 1.8s ease-out 0.3s infinite';
+        ring1.style.opacity = '1';
+        ring2.style.opacity = '1';
+      } else if (state === 'thinking') {
+        // Distinct from listening/speaking on purpose: a spinning ring
+        // plus a dots icon, so "processing" doesn't just look frozen.
+        icon.innerHTML = DOTS_ICON;
+        core.style.background = 'var(--turquoise)';
+        ring1.style.border = '1.5px solid transparent';
+        ring1.style.borderTopColor = 'var(--turquoise)';
+        ring1.style.animation = 'voiceSpin 0.9s linear infinite';
+        ring2.style.animation = 'none';
+        ring1.style.opacity = '1';
+        ring2.style.opacity = '0';
+      } else if (state === 'speaking') {
+        icon.innerHTML = SPEAKER_ICON;
+        core.style.background = 'var(--turquoise)';
+        ring1.style.animation = 'voicePulseSpeak 0.9s ease-in-out infinite';
+        ring2.style.animation = 'voicePulseSpeak 0.9s ease-in-out infinite';
+        ring1.style.opacity = '1';
+        ring2.style.opacity = '1';
+      } else {
+        icon.innerHTML = MIC_ICON;
+        core.style.background = 'var(--cobalt)';
+        ring1.style.animation = 'none';
+        ring2.style.animation = 'none';
+        ring1.style.opacity = '0';
+        ring2.style.opacity = '0';
+      }
+    },
+
+    showImage(url) {
+      const card = document.getElementById('voiceImageCard');
+      const img = document.getElementById('voiceImageThumb');
+      const caption = document.getElementById('voiceImageCaption');
+      if (url) {
+        img.src = url;
+        caption.textContent = 'Shown for this answer — take a look';
+        card.classList.add('visible');
+      } else {
+        card.classList.remove('visible');
+        img.src = '';
+      }
+    },
+
+    start() {
+      this.ensureConfigured();
+      if (lastBotSpokenText) {
+        // Repeat whatever Lisa last said (in either mode) so voice
+        // mode picks the conversation back up out loud, rather than
+        // sitting silently on an orb with no spoken context.
+        this.showImage(lastBotImageUrl);
+        this.speak(lastBotSpokenText);
+      } else {
+        this.listenOnce();
+      }
+    },
+
+    stop() {
+      voiceModeActive = false;
+      this.stopAudio();
+
+      if (this.activeRecognizer) {
+        try { this.activeRecognizer.close(); } catch (e) { /* already closed */ }
+        this.activeRecognizer = null;
+      }
+      if (this.activeSynthesizer) {
+        try { this.activeSynthesizer.close(); } catch (e) { /* already closed */ }
+        this.activeSynthesizer = null;
+      }
+
+      this.setState('idle', 'Ready when you are', 'Tap the orb to start talking');
+      this.showImage(null);
+    },
+
+    listenOnce() {
+      if (!voiceModeActive || typeof SpeechSDK === 'undefined') return;
+
+      this.setState('listening', 'Listening', 'Ask about your day, or who\u2019s visiting');
+
+      const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+      const recognizer = new SpeechSDK.SpeechRecognizer(this.speechConfig, audioConfig);
+      this.activeRecognizer = recognizer;
+
+      recognizer.recognizeOnceAsync(result => {
+        recognizer.close();
+        if (this.activeRecognizer === recognizer) this.activeRecognizer = null;
+        if (!voiceModeActive) return;
+
+        if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech && result.text) {
+          this.setState('thinking', 'Thinking', 'One moment');
+          webchatStore.dispatch({
+            type: 'WEB_CHAT/SEND_MESSAGE',
+            // Deliberately NOT method: 'speech' — that flag tells Web
+            // Chat's own core to auto-synthesize the bot's reply using
+            // its built-in TTS ponyfill, which would fire alongside
+            // VoiceController's own synthesis and cause both to speak
+            // at once. Voice mode owns speech end-to-end itself.
+            payload: { text: result.text }
+          });
+        } else {
+          // Silence, or recognition failed — just listen again rather
+          // than leaving the user stuck on a dead mic.
+          this.listenOnce();
+        }
+      }, err => {
+        console.warn('Lisa voice mode: recognition error', err);
+        recognizer.close();
+        if (this.activeRecognizer === recognizer) this.activeRecognizer = null;
+        if (voiceModeActive) {
+          this.setState('idle', 'Having trouble hearing you', 'Tap the orb to try again');
+        }
+      });
+    },
+
+    // Called from the store middleware whenever a bot reply comes in
+    // while voice mode is active.
+    handleBotReply(spokenText, imageUrl) {
+      if (!voiceModeActive || typeof SpeechSDK === 'undefined') return;
+      this.showImage(imageUrl);
+      this.speak(spokenText);
+    },
+
+    speak(text) {
+      this.setState('speaking', 'Lisa is speaking', 'Tap the orb to interrupt');
+
+      const synthesizer = new SpeechSDK.SpeechSynthesizer(this.speechConfig, null);
+      this.activeSynthesizer = synthesizer;
+      synthesizer.speakTextAsync(
+        text,
+        result => {
+          synthesizer.close();
+          if (this.activeSynthesizer === synthesizer) this.activeSynthesizer = null;
+          if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+            const blob = new Blob([result.audioData], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            this.currentAudio = audio;
+
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              if (this.currentAudio === audio) this.currentAudio = null;
+              // Small buffer before reopening the mic. On Bluetooth
+              // headsets in particular, playback and microphone capture
+              // use different hardware audio profiles, and switching
+              // between them isn't instant — reopening the mic the
+              // instant playback ends can clip the very start of
+              // whatever the user says next.
+              if (voiceModeActive) setTimeout(() => this.listenOnce(), 250);
+            };
+
+            let started = false;
+            const startPlayback = () => {
+              if (started) return;
+              started = true;
+              audio.play().catch(err => {
+                console.warn('Lisa voice mode: audio playback blocked', err);
+                if (voiceModeActive) this.listenOnce();
+              });
+            };
+
+            // Wait until enough of the clip is buffered to play smoothly
+            // rather than calling play() the instant the element exists
+            // — starting playback before the browser's buffered enough
+            // is a common cause of a clipped first fraction of a second.
+            if (audio.readyState >= 4) {
+              startPlayback();
+            } else {
+              audio.addEventListener('canplaythrough', startPlayback, { once: true });
+              setTimeout(startPlayback, 800); // fallback if the event never fires
+            }
+          } else if (voiceModeActive) {
+            this.listenOnce();
+          }
+        },
+        err => {
+          console.warn('Lisa voice mode: synthesis error', err);
+          synthesizer.close();
+          if (this.activeSynthesizer === synthesizer) this.activeSynthesizer = null;
+          if (voiceModeActive) this.listenOnce();
+        }
+      );
+    },
+
+    stopAudio() {
+      if (this.currentAudio) {
+        this.currentAudio.pause();
+        this.currentAudio = null;
+      }
+    },
+
+    interrupt() {
+      // Tap-to-interrupt: stop whatever is playing and go straight back
+      // to listening, rather than waiting for the audio to finish.
+      this.stopAudio();
+      this.listenOnce();
+    }
+  };
+
+  function enterVoiceMode() {
+    if (voiceModeActive) return; // already in a session — never start a second one
+    voiceModeActive = true;
+    document.getElementById('voiceToggleBtn').style.display = 'none';
+    document.getElementById('voiceOverlay').classList.add('active');
+    document.getElementById('voiceTranscriptLabel').classList.add('active');
+    document.getElementById('webchat').classList.add('voice-split');
+    VoiceController.start();
+  }
+
+  function exitVoiceMode() {
+    document.getElementById('voiceOverlay').classList.remove('active');
+    document.getElementById('voiceTranscriptLabel').classList.remove('active');
+    document.getElementById('voiceToggleBtn').style.display = 'flex';
+    document.getElementById('webchat').classList.remove('voice-split');
+    VoiceController.stop();
+  }
+
+  function handleOrbTap() {
+    const main = document.getElementById('voiceStatusMain').textContent;
+    if (main === 'Lisa is speaking') {
+      VoiceController.interrupt();
+    } else if (main === 'Ready when you are' || main.indexOf('trouble') > -1) {
+      VoiceController.listenOnce();
+    }
+  }
+
+  let webchatStore;
+
+  // ── PERSISTENT CHAT TYPING INDICATOR ──
+  // Web Chat's native typing indicator is created and removed by React, so it
+  // is too transient to customise reliably. We keep our own indicator alive
+  // and only toggle its visibility in response to Direct Line activities.
+  let persistentDots = null;
+  let persistentDotsPositionTimer = null;
+
+  function ensurePersistentDots() {
+    if (persistentDots && document.body.contains(persistentDots)) return persistentDots;
+
+    persistentDots = document.getElementById('persistent-chat-dots');
+    if (!persistentDots) return null;
+
+    window.persistentDots = persistentDots;
+    return persistentDots;
+  }
+
+  function positionPersistentDots() {
+    const dots = ensurePersistentDots();
+    if (!dots) return;
+
+    // The send box can be rendered/re-rendered by Web Chat, so locate the
+    // actual input every time rather than relying on a Web Chat class name.
+    const input = document.querySelector(
+      '#webchat textarea, #webchat input[placeholder*="message" i], #webchat [contenteditable="true"]'
+    );
+    if (!input) return;
+
+    const inputRect = input.getBoundingClientRect();
+    if (!inputRect.width || !inputRect.height) return;
+
+    // Sit just above the left side of the composer. The
+    // webchat__basic-transcript__scrollable padding-bottom rule above
+    // guarantees this space always exists, so no runtime measurement or
+    // clamping against the last message is needed anymore — two earlier
+    // attempts at that were fragile in different ways (wrong element
+    // measured, or correctly avoiding the message but landing on the
+    // composer instead when the gap was genuinely too tight).
+    dots.style.left = `${Math.round(inputRect.left + 10)}px`;
+    dots.style.top = `${Math.round(inputRect.top - 37)}px`;
+  }
+
+  function showPersistentDots() {
+    const dots = ensurePersistentDots();
+    if (!dots) return;
+
+    dots.classList.add('visible');
+    positionPersistentDots();
+
+    // Web Chat may finish laying out the send box one frame after the typing
+    // activity arrives. Reposition briefly while it settles, then stop.
+    if (persistentDotsPositionTimer) clearInterval(persistentDotsPositionTimer);
+    persistentDotsPositionTimer = setInterval(() => {
+      if (!dots.classList.contains('visible')) {
+        clearInterval(persistentDotsPositionTimer);
+        persistentDotsPositionTimer = null;
+        return;
+      }
+      positionPersistentDots();
+    }, 100);
+    setTimeout(() => {
+      if (persistentDotsPositionTimer) {
+        clearInterval(persistentDotsPositionTimer);
+        persistentDotsPositionTimer = null;
+      }
+    }, 1000);
+  }
+
+  function hidePersistentDots() {
+    const dots = ensurePersistentDots();
+    if (!dots) return;
+
+    dots.classList.remove('visible');
+    if (persistentDotsPositionTimer) {
+      clearInterval(persistentDotsPositionTimer);
+      persistentDotsPositionTimer = null;
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (persistentDots && persistentDots.classList.contains('visible')) {
+      positionPersistentDots();
+    }
+  });
+
+  ensurePersistentDots();
+
+  let dotsResponseQuietTimer = null;
+  let dotsResponseObserver = null;
+  let dotsResponseWaitTimer = null;
+
+  function scheduleDotsHideAfterResponseSettles() {
+    if (dotsResponseQuietTimer) clearTimeout(dotsResponseQuietTimer);
+    if (dotsResponseWaitTimer) clearTimeout(dotsResponseWaitTimer);
+    if (dotsResponseObserver) { dotsResponseObserver.disconnect(); dotsResponseObserver = null; }
+
+    const webchat = document.getElementById('webchat');
+    if (!webchat) return;
+    const selector = '[class*="webchat__render-markdown"]';
+    const baseline = new Set([...webchat.querySelectorAll(selector)]);
+    let responseElement = null;
+    let lastText = '';
+    let stableSince = 0;
+
+    const getResponseElement = () => {
+      const candidates = [...webchat.querySelectorAll(selector)];
+      return candidates.find(el => !baseline.has(el)) || null;
+    };
+
+    const finish = () => {
+      if (dotsResponseObserver) { dotsResponseObserver.disconnect(); dotsResponseObserver = null; }
+      if (dotsResponseQuietTimer) { clearTimeout(dotsResponseQuietTimer); dotsResponseQuietTimer = null; }
+      if (dotsResponseWaitTimer) { clearTimeout(dotsResponseWaitTimer); dotsResponseWaitTimer = null; }
+      hidePersistentDots();
+    };
+
+    const checkSettled = () => {
+      if (!responseElement) return;
+      const text = responseElement.textContent || '';
+      if (text !== lastText) {
+        lastText = text; stableSince = Date.now();
+        dotsResponseQuietTimer = setTimeout(checkSettled, 100);
+        return;
+      }
+      if (Date.now() - stableSince >= 100) finish();
+      else dotsResponseQuietTimer = setTimeout(checkSettled, 100);
+    };
+
+    const attach = () => {
+      responseElement = getResponseElement();
+      if (!responseElement) { dotsResponseWaitTimer = setTimeout(attach, 50); return; }
+      lastText = responseElement.textContent || ''; stableSince = Date.now();
+      dotsResponseObserver = new MutationObserver(() => {
+        stableSince = Date.now();
+        if (dotsResponseQuietTimer) clearTimeout(dotsResponseQuietTimer);
+        dotsResponseQuietTimer = setTimeout(checkSettled, 100);
+      });
+      dotsResponseObserver.observe(responseElement, {childList:true, subtree:true, characterData:true});
+      dotsResponseQuietTimer = setTimeout(checkSettled, 100);
+    };
+    attach();
+  }
+
+  function createStore() {
+    return window.WebChat.createStore(
+      {},
+      ({ dispatch }) => next => action => {
+
+        // Give every incoming bot message a clean spoken version and
+        // remember it, so voice mode can speak it (or repeat it later
+        // if the user switches into voice mode mid-conversation).
+        if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
+          const activity = action.payload && action.payload.activity;
+
+          // Show our persistent indicator as soon as Direct Line tells us the
+          // bot is typing. Do not wait for Web Chat's own transient DOM node.
+          if (activity && activity.type === 'typing') {
+            showPersistentDots();
+          }
+
+          // A bot message can arrive before Web Chat has finished rendering/
+          // streaming the response. Do not hide the dots immediately.
+          // Instead, watch the rendered markdown until it has been stable briefly.
+          if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message') {
+            scheduleDotsHideAfterResponseSettles();
+          }
+
+          // Direct Line echoes the user's own sent message back through
+          // this same incoming stream (so other connected clients stay
+          // in sync). Without checking from.role, voice mode was
+          // treating that echo as a bot reply and speaking it back —
+          // which also masked the "thinking" state, since the echo
+          // arrives almost instantly, well before Lisa's real reply.
+          const isFromBot = activity && activity.from && activity.from.role === 'bot';
+          if (isFromBot && activity.type === 'message' && activity.text) {
+            const spoken = activity.speak || buildSpeakableText(activity.text);
+
+            // Remember the latest bot turn regardless of which mode
+            // we're in, so switching into voice mode mid-conversation
+            // can repeat it instead of leaving the user facing a silent
+            // orb with no idea what Lisa last asked.
+            lastBotSpokenText = spoken;
+            lastBotImageUrl = extractImageUrl(activity.text);
+
+            if (voiceModeActive) {
+              VoiceController.handleBotReply(spoken, lastBotImageUrl);
+            }
+            // No else branch needed — Web Chat has no built-in speech
+            // ponyfill attached in this app, so activity.speak and
+            // inputHint have nothing left to drive in chat mode.
+            // Voice mode's VoiceController is the sole speech engine.
+          }
+        }
+
+        if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
+          setConnected();
+
+          // Microsoft's documented method for triggering the Greeting topic
+          // over a Direct Line connection
+          dispatch({
+            type: 'DIRECT_LINE/POST_ACTIVITY',
+            meta: { method: 'keyboard' },
+            payload: {
+              activity: {
+                channelData: { postBack: true },
+                name: 'startConversation',
+                type: 'event',
+              },
+            },
+          });
+
+          // Send a hidden postBack message 1s after greeting fires, mirroring
+          // Marge's room-context handoff. If a location_id is present (lobby
+          // kiosk), send it so Lisa can localise the greeting. Otherwise send
+          // a mobile token — Lisa's default entry point is a personal device,
+          // not a walk-in, so this is a distinct signal from Marge's
+          // "__walkin__" rather than a reused one. Not yet consumed by
+          // Lisa's live instructions (v1.0) — included now so the frontend
+          // doesn't need revisiting once a location-aware topic is built.
+          setTimeout(() => {
+            dispatch({
+              type: 'DIRECT_LINE/POST_ACTIVITY',
+              meta: { method: 'keyboard' },
+              payload: {
+                activity: {
+                  channelData: { postBack: true },
+                  type: 'message',
+                  text: locationId || '__mobile__',
+                },
+              },
+            });
+          }, 1000);
+        }
+
+        return next(action);
+      }
+    );
+  }
+
+  async function initWebChat() {
+    try {
+      // Step 1: get the regional Direct Line URL — Microsoft documented approach
+      const environmentEndPoint = TOKEN_ENDPOINT.slice(0, TOKEN_ENDPOINT.indexOf('/powervirtualagents'));
+      const apiVersion = TOKEN_ENDPOINT.slice(TOKEN_ENDPOINT.indexOf('api-version')).split('=')[1];
+      const regionalChannelSettingsURL = `${environmentEndPoint}/powervirtualagents/regionalchannelsettings?api-version=${apiVersion}`;
+
+      const [regionalRes, tokenRes] = await Promise.all([
+        fetch(regionalChannelSettingsURL),
+        fetch(TOKEN_ENDPOINT)
+      ]);
+
+      if (!regionalRes.ok) throw new Error('Failed to get regional channel settings');
+      if (!tokenRes.ok) throw new Error('Failed to get token');
+
+      const { channelUrlsById } = await regionalRes.json();
+      const { token } = await tokenRes.json();
+
+      if (!channelUrlsById?.directline) throw new Error('No Direct Line URL in regional settings');
+      if (!token) throw new Error('No token returned');
+
+      // Step 2: create Direct Line using regional URL + token
+      const directLine = window.WebChat.createDirectLine({
+        domain: `${channelUrlsById.directline}v3/directline`,
+        token,
+      });
+
+      // Direct Line proactively refreshes its token every 15 minutes
+      // while the connection is healthy, but that refresh does not
+      // recover automatically if the connection actually drops (an
+      // idle session sitting untouched, a network blip, the device
+      // going to sleep) — Microsoft's own docs are explicit that the
+      // app has to notice and supply a new one. Without this, the page
+      // is left showing "Unable to connect" until someone manually
+      // refreshes, which a walk-up or mobile user has no reason to try.
+      // ConnectionStatus: 0 Uninitialized, 1 Connecting, 2 Online,
+      // 3 ExpiredToken, 4 FailedToConnect, 5 Ended.
+      let hasBeenOnline = false;
+      directLine.connectionStatus$.subscribe(status => {
+        if (status === 2) {
+          hasBeenOnline = true;
+          return;
+        }
+        // Only auto-reload for a connection that was previously
+        // healthy and then died (ExpiredToken/FailedToConnect/Ended).
+        // Ignore the initial Connecting phase on page load — that's
+        // normal startup, not a failure, and already has its own
+        // 12-second timeout/error-screen handling below.
+        if (hasBeenOnline && (status === 3 || status === 4 || status === 5)) {
+          console.warn(`Lisa: Direct Line connection lost (status ${status}), reloading.`);
+          location.reload();
+        }
+      });
+
+      webchatStore = createStore();
+
+      // Step 3: render Web Chat. No webSpeechPonyfillFactory here —
+      // speech is handled exclusively by voice mode's own
+      // VoiceController now, not Web Chat's built-in ponyfill. This
+      // also means the send box reverts to a plain text input with a
+      // send button, no mic icon, which is correct: the only mic
+      // entry point in the app is now "Switch to voice".
+      window.WebChat.renderWebChat(
+        {
+          directLine,
+          store: webchatStore,
+          styleOptions: {
+            backgroundColor:            '#F4F6FB',
+            bubbleBackground:           '#FFFFFF',
+            bubbleBorderRadius:         12,
+            bubbleBorderWidth:          0,
+            bubbleFromUserBackground:   '#1A6EBD',
+            bubbleFromUserBorderRadius: 12,
+            bubbleFromUserBorderWidth:  0,
+            bubbleFromUserTextColor:    '#FFFFFF',
+            bubbleTextColor:            '#0A1E35',
+            bubbleNubSize:              0,
+            bubbleFromUserNubSize:      0,
+            sendBoxBackground:          '#FFFFFF',
+            sendBoxBorderBottom:        '1px solid rgba(10,30,53,0.12)',
+            sendBoxBorderLeft:          'none',
+            sendBoxBorderRight:         'none',
+            sendBoxBorderTop:           '1px solid rgba(10,30,53,0.12)',
+            sendBoxTextColor:           '#0A1E35',
+            sendBoxHeight:              52,
+            sendBoxButtonColor:         '#1A6EBD',
+            botAvatarImage:             'tandi-mark-light.png',
+            botAvatarInitials:          'L',
+            hideUploadButton:           true,
+            primaryFont:                "'DM Sans', sans-serif",
+            monospaceFont:              "'DM Mono', monospace",
+            timestampColor:             '#6B7A99',
+            renderMarkdown:             true,
+          }
+        },
+        document.getElementById('webchat')
+      );
+
+      // Fix list rendering — Web Chat resets ol/ul padding to 0 internally
+      setTimeout(() => {
+        const style = document.createElement('style');
+        style.textContent = [
+          '#webchat .webchat__bubble__content ol,',
+          '#webchat .webchat__bubble__content ul { padding-left: 1.5em !important; margin: 6px 0 !important; }',
+          '#webchat .webchat__bubble__content ol { list-style-type: decimal !important; }',
+          '#webchat .webchat__bubble__content ul { list-style-type: disc !important; }',
+          '#webchat .webchat__bubble__content li { margin-bottom: 4px !important; line-height: 1.5 !important; }',
+          '#webchat .webchat__bubble__content p  { margin: 4px 0 !important; }'
+        ].join(' ');
+        document.head.appendChild(style);
+      }, 800);
+
+    } catch (err) {
+      console.error('Web Chat init error:', err);
+      showError();
+    }
+  }
+
+  function setConnected() {
+    const loading = document.getElementById('loadingScreen');
+    if (loading) loading.style.display = 'none';
+    ['statusDotMobile', 'statusDotDesktop'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.background = '#00D4E8';
+    });
+    const st = document.getElementById('statusTextDesktop');
+    if (st) st.textContent = 'Online';
+  }
+
+  function showError() {
+    const loading = document.getElementById('loadingScreen');
+    const error = document.getElementById('errorScreen');
+    if (loading) loading.style.display = 'none';
+    if (error) error.style.display = 'flex';
+    ['statusDotMobile', 'statusDotDesktop'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.background = '#E2574C'; el.style.animation = 'none'; }
+    });
+    const st = document.getElementById('statusTextDesktop');
+    if (st) st.textContent = 'Unavailable';
+  }
+
+  // ── AZURE SPEECH SERVICES CONFIG ──
+  // Reuses the same Speech resource already provisioned for Marge (Free
+  // tier covers 5 audio hours of recognition + 500K characters of
+  // synthesis per month, shared across both frontends). A distinct voice
+  // name is set below so the two assistants sound different in a demo.
+  //
+  // SECURITY NOTE: this key is loaded client-side from config.js and used
+  // directly by VoiceController — anyone who inspects the page source (or
+  // the served config.js) can copy it and run up charges on your Speech
+  // resource. Keeping it out of config.js's committed sibling,
+  // config.example.js, stops it landing in git history; it is still fully
+  // exposed once deployed. For anything beyond an internal pilot, move
+  // recognition/synthesis behind a small server-side proxy (the same shape
+  // as the Direct Line token endpoint pattern above) so the key never
+  // reaches the browser at all.
+  const SPEECH_KEY = window.LISA_CONFIG.SPEECH_KEY;
+  const SPEECH_REGION = window.LISA_CONFIG.SPEECH_REGION;
+
+  // Which Azure neural voice Lisa speaks with, and the locale used for
+  // both recognition (accent/vocabulary) and synthesis. Used by
+  // VoiceController, which is the sole speech engine in the app — Web
+  // Chat's own built-in speech ponyfill is deliberately not used, to
+  // avoid two independent speech pipelines ever running at once.
+  // en-GB-LibbyNeural is a standard UK English female voice, distinct
+  // from Marge's en-GB-SoniaNeural so the two assistants are
+  // recognisable apart in a live demo. Browse alternatives in the
+  // Azure Speech Studio voice gallery.
+  const SPEECH_LOCALE = 'en-GB';
+  const SPEECH_VOICE_NAME = 'en-GB-LibbyNeural';
+
+  function sendQuickMessage(text) {
+    if (webchatStore) {
+      webchatStore.dispatch({
+        type: 'WEB_CHAT/SEND_MESSAGE',
+        payload: { text }
+      });
+    }
+  }
+
+  const errorTimer = setTimeout(() => {
+    const loading = document.getElementById('loadingScreen');
+    if (loading && loading.style.display !== 'none') showError();
+  }, 15000);
+
+  initWebChat().then(() => clearTimeout(errorTimer));
+</script>
+
+</body>
+</html>
