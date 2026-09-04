@@ -907,9 +907,292 @@
       .header { display: none; }
       .footer { display: none; }
     }
+
+    /* ==============================================
+       SPLASH — Employee / Visitor gate, shown before any Direct Line
+       connection is attempted. The chosen path determines the hidden
+       postback token sent as the conversation's first message (see JS),
+       which Lisa's Greeting topic branches on deterministically —
+       same "structured token, not generative matching" pattern already
+       used for Marge's room-ID walk-in flow.
+    =============================================== */
+    .splash-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--nightshade);
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .splash-overlay::before {
+      content: '';
+      position: absolute;
+      top: -80px; left: -80px;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: var(--cobalt);
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    .splash-overlay::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; right: -60px;
+      width: 240px; height: 240px;
+      border-radius: 50%;
+      background: var(--turquoise);
+      opacity: 0.1;
+      pointer-events: none;
+    }
+
+    .splash-overlay.hidden { display: none; }
+
+    .splash-card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    .splash-brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 40px;
+    }
+
+    .splash-logo-mark { height: 36px; width: 36px; display: block; }
+
+    .splash-logo-word { line-height: 1; text-align: left; }
+    .splash-logo-word-main {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--white);
+    }
+    .splash-logo-word-sub {
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      color: var(--turquoise);
+      margin-top: 2px;
+    }
+
+    .splash-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }
+
+    .splash-subtitle {
+      font-size: 14px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .splash-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .splash-choice-btn {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .splash-choice-btn:hover {
+      background: rgba(26,110,189,0.22);
+      border-color: rgba(26,110,189,0.5);
+    }
+
+    .splash-choice-icon {
+      flex-shrink: 0;
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: rgba(0,212,232,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .splash-choice-icon svg { width: 20px; height: 20px; color: var(--turquoise); }
+
+    .splash-choice-text { flex: 1; min-width: 0; }
+    .splash-choice-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--white);
+      margin-bottom: 2px;
+    }
+    .splash-choice-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.4;
+    }
+
+    /* Visitor inline form — swapped in for the two choice buttons, not a
+       separate screen, so the transition feels like one continuous card */
+    .splash-visitor-form {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      text-align: left;
+    }
+    .splash-visitor-form.visible { display: flex; }
+    .splash-choices.visitor-active { display: none; }
+
+    .splash-back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      cursor: pointer;
+      margin-bottom: 4px;
+      background: none;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      padding: 0;
+    }
+    .splash-back-link:hover { color: var(--turquoise); }
+    .splash-back-link svg { width: 14px; height: 14px; }
+
+    .splash-field-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .splash-input {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: var(--white);
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .splash-input::placeholder { color: rgba(255,255,255,0.3); }
+    .splash-input:focus {
+      outline: none;
+      border-color: var(--turquoise);
+      background: rgba(255,255,255,0.09);
+    }
+    .splash-input.invalid { border-color: var(--alert); }
+
+    .splash-field-error {
+      font-size: 12px;
+      color: var(--alert);
+      margin-top: 5px;
+      display: none;
+    }
+    .splash-field-error.visible { display: block; }
+
+    .splash-continue-btn {
+      margin-top: 6px;
+      padding: 13px 18px;
+      background: var(--cobalt);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: background 0.15s;
+    }
+    .splash-continue-btn:hover { background: #1558A0; }
+    .splash-continue-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @media (min-width: 600px) {
+      .splash-title { font-size: 26px; }
+    }
   </style>
 </head>
 <body>
+
+<!-- SPLASH — Employee / Visitor gate. Sits above everything else; the main
+     .shell (chat UI) exists underneath but stays hidden until a choice is
+     made and Direct Line connection begins. -->
+<div class="splash-overlay" id="splashOverlay">
+  <div class="splash-card">
+    <div class="splash-brand">
+      <img src="tandi-mark-transparent.png" alt="TANDI Laboratories" class="splash-logo-mark" />
+      <div class="splash-logo-word">
+        <div class="splash-logo-word-main">TANDI</div>
+        <div class="splash-logo-word-sub">LABORATORIES</div>
+      </div>
+    </div>
+
+    <div class="splash-title">Welcome — I'm Lisa</div>
+    <div class="splash-subtitle">Your Digital Workplace Concierge. To get you the right experience, let me know who's joining today.</div>
+
+    <div class="splash-choices" id="splashChoices">
+      <button class="splash-choice-btn" onclick="selectEmployee()">
+        <span class="splash-choice-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="splash-choice-text">
+          <div class="splash-choice-title">I'm an employee</div>
+          <div class="splash-choice-sub">Sign in for a personalised experience</div>
+        </span>
+      </button>
+      <button class="splash-choice-btn" onclick="showVisitorForm()">
+        <span class="splash-choice-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+        </span>
+        <span class="splash-choice-text">
+          <div class="splash-choice-title">I'm visiting</div>
+          <div class="splash-choice-sub">Enter your visit email and code</div>
+        </span>
+      </button>
+    </div>
+
+    <div class="splash-visitor-form" id="splashVisitorForm">
+      <button class="splash-back-link" onclick="backToChoices()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back
+      </button>
+      <div>
+        <label class="splash-field-label" for="visitorEmail">Your email address</label>
+        <input class="splash-input" type="email" id="visitorEmail" placeholder="you@example.com" autocomplete="email" onkeydown="if(event.key==='Enter') submitVisitorForm()" />
+        <div class="splash-field-error" id="visitorEmailError">Enter a valid email address.</div>
+      </div>
+      <div>
+        <label class="splash-field-label" for="visitorCode">Visit code</label>
+        <input class="splash-input" type="text" id="visitorCode" placeholder="e.g. GLBDBJ" autocomplete="off" style="text-transform: uppercase;" onkeydown="if(event.key==='Enter') submitVisitorForm()" />
+        <div class="splash-field-error" id="visitorCodeError">Enter the code from your visit invitation.</div>
+      </div>
+      <button class="splash-continue-btn" id="visitorContinueBtn" onclick="submitVisitorForm()">Continue</button>
+      <div class="splash-field-error" id="visitorFormError" style="text-align:center;"></div>
+    </div>
+  </div>
+</div>
 
 <div class="shell">
 
@@ -1061,6 +1344,12 @@
   const locationId   = params.get('location_id') || '';
   const locationName = params.get('location_name') || '';
   const hasLocationContext = Boolean(locationId || locationName);
+
+  // Set by selectEmployee() / submitVisitorForm() once the splash choice is
+  // made — the deterministic token sent as the conversation's first message.
+  // Direct Line isn't connected at all until one of those functions runs, so
+  // this is always populated before it's ever read.
+  let entryToken = null;
 
   const displayName = locationName || locationId || 'Digital Workplace Concierge';
   const displayId   = locationId || '';
@@ -1690,14 +1979,20 @@
             },
           });
 
-          // Send a hidden postBack message 1s after greeting fires, mirroring
-          // Marge's room-context handoff. If a location_id is present (lobby
-          // kiosk), send it so Lisa can localise the greeting. Otherwise send
-          // a mobile token — Lisa's default entry point is a personal device,
-          // not a walk-in, so this is a distinct signal from Marge's
-          // "__walkin__" rather than a reused one. Not yet consumed by
-          // Lisa's live instructions (v1.0) — included now so the frontend
-          // doesn't need revisiting once a location-aware topic is built.
+          // Send the splash-selected entry token as a hidden postBack, 1s
+          // after the Greeting event fires. This is a structured, exact-match
+          // signal for Lisa's Greeting topic to branch on — same "deterministic
+          // token, not generative matching" pattern as Marge's room-ID walk-in
+          // flow. entryToken is set by selectEmployee()/submitVisitorForm()
+          // before initWebChat() is ever called, so it's always populated by
+          // this point.
+          //
+          // location_id (lobby-kiosk deployment) is deliberately NOT merged
+          // into this token — the visitor token already uses its own "|"
+          // delimiter for email/code, and combining both would need
+          // multi-segment parsing on the Copilot Studio side for a use case
+          // (kiosk deployment) that isn't the current focus. If lobby-kiosk
+          // support is built out later, this is the spot to revisit.
           setTimeout(() => {
             dispatch({
               type: 'DIRECT_LINE/POST_ACTIVITY',
@@ -1706,7 +2001,7 @@
                 activity: {
                   channelData: { postBack: true },
                   type: 'message',
-                  text: locationId || '__mobile__',
+                  text: entryToken,
                 },
               },
             });
@@ -1899,12 +2194,72 @@
     }
   }
 
-  const errorTimer = setTimeout(() => {
-    const loading = document.getElementById('loadingScreen');
-    if (loading && loading.style.display !== 'none') showError();
-  }, 15000);
+  // ── SPLASH — Employee / Visitor gate ──
+  // Direct Line is not connected at all until one of these runs. This keeps
+  // the "who is this and what should they be able to do" question resolved
+  // before any conversation state exists, rather than trying to gate
+  // capabilities generatively after the fact.
 
-  initWebChat().then(() => clearTimeout(errorTimer));
+  function selectEmployee() {
+    entryToken = '__employee__';
+    startAppAfterSplash();
+  }
+
+  function showVisitorForm() {
+    document.getElementById('splashChoices').classList.add('visitor-active');
+    document.getElementById('splashVisitorForm').classList.add('visible');
+    document.getElementById('visitorEmail').focus();
+  }
+
+  function backToChoices() {
+    document.getElementById('splashChoices').classList.remove('visitor-active');
+    document.getElementById('splashVisitorForm').classList.remove('visible');
+    // Clear validation state so the form starts clean if they come back to it
+    document.getElementById('visitorEmail').classList.remove('invalid');
+    document.getElementById('visitorCode').classList.remove('invalid');
+    document.getElementById('visitorEmailError').classList.remove('visible');
+    document.getElementById('visitorCodeError').classList.remove('visible');
+    document.getElementById('visitorFormError').textContent = '';
+  }
+
+  function submitVisitorForm() {
+    const emailInput = document.getElementById('visitorEmail');
+    const codeInput = document.getElementById('visitorCode');
+    const email = emailInput.value.trim();
+    const code = codeInput.value.trim().toUpperCase();
+
+    // Light client-side validation only — a UX nicety, not a security
+    // control. The actual verification (does this email+code combination
+    // match a real visit) happens server-side, same "never trust the
+    // client" principle as everything else tonight.
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const codeValid = code.length >= 4;
+
+    document.getElementById('visitorEmailError').classList.toggle('visible', !emailValid);
+    emailInput.classList.toggle('invalid', !emailValid);
+    document.getElementById('visitorCodeError').classList.toggle('visible', !codeValid);
+    codeInput.classList.toggle('invalid', !codeValid);
+
+    if (!emailValid || !codeValid) return;
+
+    // "|" is a safe delimiter here — it can't appear in a valid email
+    // address, and visit codes in the sample data are short alphanumeric
+    // strings with no punctuation. Lisa's Greeting topic splits on this
+    // same character to recover both values — see the backend spec.
+    entryToken = `__visitor__:${email}|${code}`;
+    startAppAfterSplash();
+  }
+
+  function startAppAfterSplash() {
+    document.getElementById('splashOverlay').classList.add('hidden');
+
+    const errorTimer = setTimeout(() => {
+      const loading = document.getElementById('loadingScreen');
+      if (loading && loading.style.display !== 'none') showError();
+    }, 15000);
+
+    initWebChat().then(() => clearTimeout(errorTimer));
+  }
 </script>
 
 </body>
