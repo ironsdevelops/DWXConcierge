@@ -1988,7 +1988,21 @@
               meta: { method: 'keyboard' },
               payload: {
                 activity: {
-                  channelData: { postBack: true },
+                  // No postBack flag here — this is a live test. postBack
+                  // conventionally signals "a value submitted from
+                  // something the bot already presented" (a button, a
+                  // card), not free-form input. __employee__ works fine
+                  // flagged this way because it's handled entirely by
+                  // instruction-following, which doesn't care about the
+                  // flag — but __visitor__:... is now handled by a topic
+                  // using generative trigger-matching, and it's plausible
+                  // that pipeline treats postback-flagged activities
+                  // differently, bypassing normal topic selection for
+                  // them. If removing this flag fixes the visitor path,
+                  // that confirms it and this should stay removed. If it
+                  // doesn't, put channelData: { postBack: true } back —
+                  // it wasn't the cause, and hiding this from the visible
+                  // transcript (its original purpose) is worth having.
                   type: 'message',
                   text: entryToken,
                 },
