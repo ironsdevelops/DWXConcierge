@@ -2094,6 +2094,29 @@
         {
           directLine,
           store: webchatStore,
+          // Suppresses the entry-token message from the visible transcript.
+          // channelData: { postBack: true } was tried for this earlier and
+          // did NOT work in this Web Chat setup — confirmed by testing, the
+          // token was still visibly rendered even with that flag set — so
+          // this uses Web Chat's actual activity-level rendering hook
+          // instead. Returning a middleware that renders null for this one
+          // specific activity (rather than calling next(card)) removes it
+          // from the transcript entirely; every other activity falls
+          // through to next(card) and renders normally, untouched.
+          activityMiddleware: () => next => card => {
+            const activity = card.activity;
+            const isEntryToken =
+              activity &&
+              activity.from &&
+              activity.from.role === 'user' &&
+              typeof activity.text === 'string' &&
+              (activity.text === '__employee__' || activity.text.startsWith('__visitor__:'));
+
+            if (isEntryToken) {
+              return () => null;
+            }
+            return next(card);
+          },
           styleOptions: {
             backgroundColor:            '#F4F6FB',
             bubbleBackground:           '#FFFFFF',
