@@ -1242,23 +1242,13 @@
 
       <div class="sidebar-hint">Hi, I'm Lisa — your Digital Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
 
-      <div class="sidebar-topics">
-        <button class="sidebar-topic" onclick="sendQuickMessage('Who is visiting today?')">
-          <span class="topic-dot"></span>Who&#39;s visiting today?
-        </button>
-        <button class="sidebar-topic" onclick="sendQuickMessage('What is my next meeting?')">
-          <span class="topic-dot"></span>Check my next meeting
-        </button>
-        <button class="sidebar-topic" onclick="sendQuickMessage('I need help with a meeting room')">
-          <span class="topic-dot"></span>Help with a meeting room
-        </button>
-        <button class="sidebar-topic" onclick="sendQuickMessage('Can I book a desk for tomorrow?')">
-          <span class="topic-dot"></span>Book a desk
-        </button>
-        <button class="sidebar-topic" onclick="sendQuickMessage('Something is not working')">
-          <span class="topic-dot"></span>Something isn&#39;t working
-        </button>
-      </div>
+      <!-- Populated by renderSidebarTopics() once the splash choice is made —
+           see the SIDEBAR_TOPICS_EMPLOYEE / SIDEBAR_TOPICS_VISITOR arrays in
+           the script below. Empty until then; a visitor should never see
+           employee-only quick topics like "Check my next meeting" or
+           "Book a desk" (per Lisa's "Visitor conversations — hard limits"
+           instruction) even for a moment before JS runs. -->
+      <div class="sidebar-topics" id="sidebarTopics"></div>
 
       <div class="sidebar-footer">
         <a href="mailto:support@tandilab.com" class="sidebar-support-btn">Contact IT Support</a>
@@ -2194,6 +2184,39 @@
     }
   }
 
+  // ── ROLE-SPECIFIC SIDEBAR QUICK TOPICS ──
+  // Visitor topics deliberately exclude anything calendar/colleague/desk-
+  // related — matches Lisa's "Visitor conversations — hard limits"
+  // instruction (visitor-specific help only: host, wayfinding, own visit
+  // details), so a visitor is never invited to tap something she'd have to
+  // decline anyway.
+  const SIDEBAR_TOPICS_EMPLOYEE = [
+    { label: "Who's visiting today?", text: 'Who is visiting today?' },
+    { label: 'Check my next meeting', text: 'What is my next meeting?' },
+    { label: 'Help with a meeting room', text: 'I need help with a meeting room' },
+    { label: 'Book a desk', text: 'Can I book a desk for tomorrow?' },
+    { label: "Something isn't working", text: 'Something is not working' },
+  ];
+
+  const SIDEBAR_TOPICS_VISITOR = [
+    { label: 'Find my host', text: 'Where can I find my host?' },
+    { label: 'Check my visit details', text: 'What is my visit for?' },
+    { label: 'Help with a meeting room', text: 'I need help with a meeting room' },
+    { label: "Something isn't working", text: 'Something is not working' },
+  ];
+
+  function renderSidebarTopics(role) {
+    const container = document.getElementById('sidebarTopics');
+    if (!container) return;
+    const topics = role === 'visitor' ? SIDEBAR_TOPICS_VISITOR : SIDEBAR_TOPICS_EMPLOYEE;
+
+    container.innerHTML = topics.map(t => `
+      <button class="sidebar-topic" onclick="sendQuickMessage(${JSON.stringify(t.text)})">
+        <span class="topic-dot"></span>${t.label}
+      </button>
+    `).join('');
+  }
+
   // ── SPLASH — Employee / Visitor gate ──
   // Direct Line is not connected at all until one of these runs. This keeps
   // the "who is this and what should they be able to do" question resolved
@@ -2202,6 +2225,7 @@
 
   function selectEmployee() {
     entryToken = '__employee__';
+    renderSidebarTopics('employee');
     startAppAfterSplash();
   }
 
@@ -2247,6 +2271,7 @@
     // strings with no punctuation. Lisa's Greeting topic splits on this
     // same character to recover both values — see the backend spec.
     entryToken = `__visitor__:${email}|${code}`;
+    renderSidebarTopics('visitor');
     startAppAfterSplash();
   }
 
