@@ -2005,6 +2005,18 @@
                   // transcript (its original purpose) is worth having.
                   type: 'message',
                   text: entryToken,
+                  // textFormat: 'plain' — the token contains __visitor__,
+                  // and double underscores are Markdown bold syntax. Web
+                  // Chat renders with renderMarkdown: true, and a rendered
+                  // transcript bubble was observed showing "visitor:..."
+                  // with the underscores missing entirely — consistent
+                  // with Markdown interpreting them as bold formatting
+                  // rather than literal characters. This forces plain-text
+                  // handling so the literal string can't be reinterpreted
+                  // at any point in the pipeline, whether that's actually
+                  // been affecting the real data Copilot Studio receives
+                  // or only ever affected the visual display.
+                  textFormat: 'plain',
                 },
               },
             });
