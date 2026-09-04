@@ -1955,27 +1955,26 @@
         if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
           setConnected();
 
-          // Microsoft's documented method for triggering the Greeting topic
-          // over a Direct Line connection
-          dispatch({
-            type: 'DIRECT_LINE/POST_ACTIVITY',
-            meta: { method: 'keyboard' },
-            payload: {
-              activity: {
-                channelData: { postBack: true },
-                name: 'startConversation',
-                type: 'event',
-              },
-            },
-          });
-
-          // Send the splash-selected entry token as a hidden postBack, 1s
-          // after the Greeting event fires. This is a structured, exact-match
-          // signal for Lisa's Greeting topic to branch on — same "deterministic
-          // token, not generative matching" pattern as Marge's room-ID walk-in
-          // flow. entryToken is set by selectEmployee()/submitVisitorForm()
-          // before initWebChat() is ever called, so it's always populated by
-          // this point.
+          // Send the splash-selected entry token as a hidden postBack —
+          // the first and only activity before it, so this genuinely is
+          // the first message of the conversation, matching how the
+          // Copilot Studio test pane behaves when you type it directly.
+          //
+          // A separate startConversation event used to fire here first
+          // (Marge's original pattern, for triggering the system Greeting
+          // topic), but that's no longer relevant now that Lisa's own
+          // Special-tokens instructions and the Verify Visitor Entry topic
+          // handle conversation opening directly off this token. Keeping
+          // that event around was actively harmful, not just redundant —
+          // confirmed by testing: the same literal token text worked
+          // correctly typed directly into the Copilot Studio test pane,
+          // but failed to trigger Verify Visitor Entry when sent through
+          // this real Direct Line connection with the event preceding it.
+          // Removing the event is the fix being tested.
+          //
+          // A short delay is kept purely to let the connection settle
+          // before sending anything — not to wait for any prior activity
+          // to be processed first.
           //
           // location_id (lobby-kiosk deployment) is deliberately NOT merged
           // into this token — the visitor token already uses its own "|"
@@ -1995,7 +1994,7 @@
                 },
               },
             });
-          }, 1000);
+          }, 500);
         }
 
         return next(action);
@@ -2210,11 +2209,25 @@
     if (!container) return;
     const topics = role === 'visitor' ? SIDEBAR_TOPICS_VISITOR : SIDEBAR_TOPICS_EMPLOYEE;
 
-    container.innerHTML = topics.map(t => `
-      <button class="sidebar-topic" onclick="sendQuickMessage(${JSON.stringify(t.text)})">
+    // No inline onclick with interpolated text here — a previous version did
+    // onclick="sendQuickMessage(${JSON.stringify(t.text)})", which silently
+    // broke every button: JSON.stringify wraps its output in double quotes,
+    // colliding with the onclick="..." attribute's own double quotes and
+    // truncating the handler into invalid JS with no visible error anywhere.
+    // Listeners attached via addEventListener below sidestep the whole
+    // class of quoting bug, regardless of what characters end up in a
+    // button's text later (an apostrophe, e.g., would have hit the same
+    // wall even after a quick single/double-quote swap).
+    container.innerHTML = topics.map((t, i) => `
+      <button class="sidebar-topic" data-topic-index="${i}">
         <span class="topic-dot"></span>${t.label}
       </button>
     `).join('');
+
+    container.querySelectorAll('.sidebar-topic').forEach(btn => {
+      const idx = parseInt(btn.getAttribute('data-topic-index'), 10);
+      btn.addEventListener('click', () => sendQuickMessage(topics[idx].text));
+    });
   }
 
   // ── SPLASH — Employee / Visitor gate ──
