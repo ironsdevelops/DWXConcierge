@@ -1521,23 +1521,9 @@
     dots.style.top = `${Math.round(inputRect.top - 37)}px`;
   }
 
-  // How long to keep the dots visible after a message settles before actually
-  // hiding them. A single-message reply hides almost immediately regardless
-  // (the grace period elapses with nothing else happening). This exists for
-  // chained multi-step responses — e.g. an identity lookup surfaced as its
-  // own message, followed moments later by a second message with the actual
-  // data — where there's a real multi-second gap between messages and no
-  // guarantee Direct Line sends a fresh "typing" activity to bridge it.
-  const DOTS_GRACE_MS = 4000;
-  let dotsGraceHideTimer = null;
-
   function showPersistentDots() {
     const dots = ensurePersistentDots();
     if (!dots) return;
-
-    // Any new activity means we're still busy — cancel a pending grace-period
-    // hide rather than let it fire while a new message is on the way.
-    if (dotsGraceHideTimer) { clearTimeout(dotsGraceHideTimer); dotsGraceHideTimer = null; }
 
     dots.classList.add('visible');
     positionPersistentDots();
@@ -1588,10 +1574,6 @@
     if (dotsResponseQuietTimer) clearTimeout(dotsResponseQuietTimer);
     if (dotsResponseWaitTimer) clearTimeout(dotsResponseWaitTimer);
     if (dotsResponseObserver) { dotsResponseObserver.disconnect(); dotsResponseObserver = null; }
-    // A new message is actively being tracked — any hide pending from a prior
-    // message in the same chained response is now stale; don't let it fire
-    // mid-way through this one.
-    if (dotsGraceHideTimer) { clearTimeout(dotsGraceHideTimer); dotsGraceHideTimer = null; }
 
     const webchat = document.getElementById('webchat');
     if (!webchat) return;
@@ -1610,16 +1592,7 @@
       if (dotsResponseObserver) { dotsResponseObserver.disconnect(); dotsResponseObserver = null; }
       if (dotsResponseQuietTimer) { clearTimeout(dotsResponseQuietTimer); dotsResponseQuietTimer = null; }
       if (dotsResponseWaitTimer) { clearTimeout(dotsResponseWaitTimer); dotsResponseWaitTimer = null; }
-      // Don't hide immediately — wait out the grace window in case this is one
-      // message in a chained multi-step response and another is still coming.
-      // showPersistentDots() cancels this if a new typing/message activity
-      // arrives first; scheduleDotsHideAfterResponseSettles() also clears it
-      // if a second message starts being tracked before this timer fires.
-      if (dotsGraceHideTimer) clearTimeout(dotsGraceHideTimer);
-      dotsGraceHideTimer = setTimeout(() => {
-        dotsGraceHideTimer = null;
-        hidePersistentDots();
-      }, DOTS_GRACE_MS);
+      hidePersistentDots();
     };
 
     const checkSettled = () => {
