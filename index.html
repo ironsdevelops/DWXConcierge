@@ -1340,6 +1340,17 @@
   // Direct Line isn't connected at all until one of those functions runs, so
   // this is always populated before it's ever read.
   let entryToken = null;
+  // Set alongside entryToken by selectEmployee()/submitVisitorForm() — drives
+  // which synthetic waiting message gets shown immediately on connect (see
+  // CONNECT_FULFILLED below). Kept as its own variable rather than
+  // re-parsing entryToken's string, since the two are always set together
+  // anyway and this is clearer to read at the point of use.
+  let entryRole = null;
+
+  const ENTRY_WAITING_MESSAGES = {
+    employee: 'To provide a personalised experience, please sign in.',
+    visitor: 'Please wait while we verify your visitor details.',
+  };
 
   const displayName = locationName || locationId || 'Digital Workplace Concierge';
   const displayId   = locationId || '';
@@ -1921,7 +1932,14 @@
           // A bot message can arrive before Web Chat has finished rendering/
           // streaming the response. Do not hide the dots immediately.
           // Instead, watch the rendered markdown until it has been stable briefly.
-          if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message') {
+          // Excludes the synthetic waiting message injected on connect (see
+          // CONNECT_FULFILLED below) — that message is never followed by its
+          // own "settling" the way a real response is, so treating it as a
+          // genuine reply would hide the dots the instant it appears, right
+          // when they're needed most (during the real gap this message
+          // exists to bridge).
+          const isSynthetic = activity && activity.channelData && activity.channelData.synthetic;
+          if (activity && activity.from && activity.from.role === 'bot' && activity.type === 'message' && !isSynthetic) {
             scheduleDotsHideAfterResponseSettles();
           }
 
@@ -1954,6 +1972,38 @@
 
         if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
           setConnected();
+
+          // Bridges the real, backend-side delay before Copilot Studio even
+          // selects a topic to run — a message placed as that topic's own
+          // first node can never arrive early enough to fill this gap,
+          // since the topic hasn't started executing yet during it. This
+          // is a synthetic message, injected directly into Web Chat's
+          // store — nothing on the backend produced it, it never travels
+          // over Direct Line, but it renders as a normal Lisa bubble.
+          // Tagged channelData.synthetic so the dots-hide logic above
+          // knows to ignore it rather than treating it as the real reply.
+          if (entryRole && ENTRY_WAITING_MESSAGES[entryRole]) {
+            dispatch({
+              type: 'DIRECT_LINE/INCOMING_ACTIVITY',
+              payload: {
+                activity: {
+                  type: 'message',
+                  id: `local-waiting-${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  from: { id: 'lisa', name: 'Lisa', role: 'bot' },
+                  text: ENTRY_WAITING_MESSAGES[entryRole],
+                  channelData: { synthetic: true },
+                },
+              },
+            });
+            // Keep the persistent dots visible right through from here —
+            // don't wait for a real 'typing' activity, which may not
+            // arrive promptly during exactly the delay this exists to
+            // cover. They'll hide normally once Lisa's real first
+            // response (the sign-in card, or Verify Visitor Entry's
+            // actual result) settles, per the existing logic above.
+            showPersistentDots();
+          }
 
           // Send the splash-selected entry token as a hidden postBack —
           // the first and only activity before it, so this genuinely is
@@ -2287,6 +2337,7 @@
 
   function selectEmployee() {
     entryToken = '__employee__';
+    entryRole = 'employee';
     renderSidebarTopics('employee');
     startAppAfterSplash();
   }
@@ -2333,6 +2384,7 @@
     // strings with no punctuation. Lisa's Greeting topic splits on this
     // same character to recover both values — see the backend spec.
     entryToken = `__visitor__:${email}|${code}`;
+    entryRole = 'visitor';
     renderSidebarTopics('visitor');
     startAppAfterSplash();
   }
