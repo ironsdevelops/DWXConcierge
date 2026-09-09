@@ -443,6 +443,21 @@
       display: none !important;
     }
 
+    /* Web Chat's default bot-avatar styling applies a modest corner-radius
+       (a rounded square) rather than a full circle — visibly inconsistent
+       against the fully-circular avatar used in the sidebar. Confirmed via
+       direct DOM inspection (not guessed) that webchat__imageAvatar and its
+       child webchat__imageAvatar__image are specifically the small avatar
+       wrapper, not some wider unrelated container — an earlier attempt at
+       this used a broad [class*="avatar"] substring match that also caught
+       a different, wider element and warped it; these two exact class
+       names avoid that entirely. */
+    #webchat .webchat__imageAvatar,
+    #webchat .webchat__imageAvatar__image {
+      border-radius: 50% !important;
+      overflow: hidden !important;
+    }
+
     #persistent-chat-dots {
       position: fixed;
       left: 0;
