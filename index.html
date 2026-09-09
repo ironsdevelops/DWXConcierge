@@ -443,19 +443,6 @@
       display: none !important;
     }
 
-    /* Web Chat's default bot-avatar styling applies a modest corner-radius
-       (a rounded square) rather than a full circle — visibly inconsistent
-       against the fully-circular avatar used in the sidebar. Same
-       substring-match approach as the typing indicator above, since the
-       exact hashed class name isn't something to guess at directly.
-       overflow:hidden is required alongside border-radius here — the
-       radius alone doesn't clip a child <img> unless the container also
-       hides its overflow. */
-    #webchat [class*="avatar"] {
-      border-radius: 50% !important;
-      overflow: hidden !important;
-    }
-
     #persistent-chat-dots {
       position: fixed;
       left: 0;
