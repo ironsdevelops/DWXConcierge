@@ -662,10 +662,15 @@
         overflow: hidden;
       }
 
-      /* Grid: sidebar | chat-container */
+      /* Grid: sidebar | chat-container — percentage-based, not fixed-pixel,
+         so the ratio stays consistent (35/65) regardless of how wide the
+         browser window actually is, matching WhatsApp's own desktop
+         convention. A fixed-pixel sidebar made the chat's actual share of
+         the screen drift depending on viewport width, which is what made
+         it feel inconsistently narrow. */
       .shell {
         display: grid;
-        grid-template-columns: 300px 1fr;
+        grid-template-columns: 35% 65%;
         grid-template-rows: 1fr;
         height: 100vh;
         max-width: 1200px;
