@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Visitor Welcome</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  :root{
+    --midnight:  #0E2240;
+    --blueprint: #1A6EBD;
+    --signal:    #00D4E8;
+    --kinetic:   #F97316;
+    --steel:     #334155;
+    --frost:     #EBF8FF;
+    --white:     #FFFFFF;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html,body{
+    width:100%; height:100%;
+    background:var(--midnight);
+    color:var(--white);
+    font-family:'Inter', Arial, sans-serif;
+    overflow:hidden;
+  }
+
+  .stage{
+    position:relative;
+    width:100%; height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:
+      linear-gradient(180deg, rgba(26,110,189,0.10) 0%, transparent 30%),
+      radial-gradient(circle at 88% 85%, rgba(0,212,232,0.06), transparent 45%),
+      var(--midnight);
+  }
+
+  /* faint architectural grid, echoing the blueprint-corner icon */
+  .stage::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .frame{
+    position:absolute;
+    inset: 3.2vh 3.2vw;
+    border:1px solid rgba(255,255,255,0.14);
+    pointer-events:none;
+  }
+  .frame::before, .frame::after{
+    content:"";
+    position:absolute;
+    width:14px; height:14px;
+    border:2px solid var(--signal);
+  }
+  .frame::before{ top:-2px; left:-2px; border-right:none; border-bottom:none; }
+  .frame::after{ bottom:-2px; right:-2px; border-left:none; border-top:none; }
+
+  .brand-header{
+    position:absolute;
+    top: 5vh;
+    left: 5vw;
+  }
+
+  .content{
+    position:relative;
+    width:min(74vw, 980px);
+    text-align:center;
+    opacity:0;
+  }
+
+  .content.is-visible{
+    animation: rise 900ms cubic-bezier(.22,.68,.2,1) both;
+  }
+
+  @keyframes rise{
+    from{ opacity:0; transform: translateY(18px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+
+  .eyebrow-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin-bottom: clamp(20px, 3.2vh, 36px);
+  }
+
+  .dot{
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--signal);
+    box-shadow:0 0 0 5px rgba(0,212,232,0.16);
+  }
+
+  .status{
+    font-size: clamp(12px, 1vw, 14px);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--signal);
+    font-weight:700;
+  }
+
+  .greeting{
+    font-family:'Inter', Arial, sans-serif;
+    font-weight:500;
+    font-size: clamp(20px, 2vw, 26px);
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.62);
+    line-height:1.2;
+  }
+
+  .visitor-name{
+    font-family:'Inter', Arial, sans-serif;
+    font-weight:900;
+    font-size: clamp(54px, 7.6vw, 122px);
+    line-height:1.04;
+    letter-spacing: -0.01em;
+    margin: clamp(8px,1.4vh,16px) 0 clamp(22px,3.4vh,34px);
+    color: var(--kinetic);
+    word-break: break-word;
+  }
+
+  .divider{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    margin: 0 auto clamp(22px,3.4vh,32px);
+  }
+  .divider .node{
+    width:6px; height:6px;
+    border-radius:50%;
+    background:var(--signal);
+  }
+  .divider .dash-line{
+    width:72px; height:0;
+    border-top: 1.5px dashed rgba(255,255,255,0.28);
+  }
+
+  .meta{
+    display:flex;
+    justify-content:center;
+    gap: clamp(30px, 4.4vw, 68px);
+    flex-wrap:wrap;
+  }
+
+  .meta-item{ text-align:center; }
+
+  .meta-label{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    font-size:11px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom:7px;
+  }
+  .meta-label::before{
+    content:"";
+    width:5px; height:5px;
+    border-radius:50%;
+    background: var(--blueprint);
+    display:inline-block;
+  }
+
+  .meta-value{
+    font-size: clamp(15px, 1.3vw, 19px);
+    font-weight:700;
+    color: var(--white);
+  }
+
+  .brand-footer{
+    position:absolute;
+    bottom: 4.6vh;
+    left:0; right:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+  }
+
+  .footer-note{
+    font-size:12px;
+    letter-spacing:0.06em;
+    color: rgba(255,255,255,0.38);
+  }
+
+  .footer-brand{
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color: rgba(0,212,232,0.55);
+  }
+
+  .corner-mark{
+    position:absolute;
+    bottom: 4.2vh;
+    right: 4.4vw;
+    width: 44px;
+    height: 44px;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <div class="frame"></div>
+
+    <div class="brand-header">
+      <svg width="220" height="46" viewBox="0 0 360 76" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(0,6)">
+          <path d="M12 76 L12 12 L76 12" stroke="rgba(255,255,255,0.8)" stroke-width="7" fill="none" stroke-linecap="square" stroke-linejoin="miter"/>
+          <line x1="30" y1="8" x2="30" y2="16" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="48" y1="8" x2="48" y2="16" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="66" y1="8" x2="66" y2="16" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="8" y1="30" x2="16" y2="30" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="8" y1="48" x2="16" y2="48" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="8" y1="66" x2="16" y2="66" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+          <line x1="12" y1="44" x2="76" y2="44" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" stroke-dasharray="5,4"/>
+          <line x1="44" y1="12" x2="44" y2="76" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" stroke-dasharray="5,4"/>
+          <line x1="44" y1="17" x2="17" y2="44" stroke="#00D4E8" stroke-width="1.2" opacity="0.7" stroke-dasharray="4,3"/>
+          <circle cx="12" cy="12" r="12" fill="#0E2240" stroke="#00D4E8" stroke-width="2.5"/>
+          <circle cx="12" cy="12" r="6" fill="#00D4E8"/>
+          <circle cx="76" cy="12" r="6.5" fill="rgba(255,255,255,0.7)"/>
+          <circle cx="12" cy="76" r="6.5" fill="rgba(255,255,255,0.7)"/>
+          <circle cx="44" cy="12" r="4.5" fill="#0E2240" stroke="#00D4E8" stroke-width="1.8"/>
+          <circle cx="12" cy="44" r="4.5" fill="#0E2240" stroke="#00D4E8" stroke-width="1.8"/>
+        </g>
+        <text x="88" y="40" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="32" letter-spacing="3" fill="#FFFFFF">TANDI</text>
+        <text x="90" y="58" font-family="Arial, sans-serif" font-weight="400" font-size="12" letter-spacing="7" fill="#00D4E8">LABORATORIES</text>
+      </svg>
+    </div>
+
+    <div class="content" id="content">
+      <div class="eyebrow-row">
+        <span class="dot"></span>
+        <span class="status" id="statusLabel">CHECKED IN</span>
+      </div>
+
+      <div class="greeting" id="greetingText">Welcome,</div>
+      <div class="visitor-name" id="visitorName">Visitor</div>
+
+      <div class="divider">
+        <span class="node"></span>
+        <span class="dash-line"></span>
+        <span class="node"></span>
+      </div>
+
+      <div class="meta">
+        <div class="meta-item">
+          <div class="meta-label">Host</div>
+          <div class="meta-value" id="hostName">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Arrival Time</div>
+          <div class="meta-value" id="arrivalTime">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Location</div>
+          <div class="meta-value" id="locationName">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="brand-footer">
+      <div class="footer-note">Please wear your visitor badge at all times</div>
+      <div class="footer-brand">Powered by HERALD · TANDI Labs</div>
+    </div>
+
+    <svg class="corner-mark" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 76 L12 12 L76 12" stroke="rgba(255,255,255,0.8)" stroke-width="7" fill="none" stroke-linecap="square" stroke-linejoin="miter"/>
+      <line x1="12" y1="44" x2="76" y2="44" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" stroke-dasharray="5,4"/>
+      <line x1="44" y1="12" x2="44" y2="76" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" stroke-dasharray="5,4"/>
+      <line x1="44" y1="17" x2="17" y2="44" stroke="#00D4E8" stroke-width="1.2" opacity="0.7" stroke-dasharray="4,3"/>
+      <circle cx="12" cy="12" r="12" fill="#0E2240" stroke="#00D4E8" stroke-width="2.5"/>
+      <circle cx="12" cy="12" r="6" fill="#00D4E8"/>
+      <circle cx="76" cy="12" r="6.5" fill="rgba(255,255,255,0.7)"/>
+      <circle cx="12" cy="76" r="6.5" fill="rgba(255,255,255,0.7)"/>
+      <circle cx="44" cy="12" r="4.5" fill="#0E2240" stroke="#00D4E8" stroke-width="1.8"/>
+      <circle cx="12" cy="44" r="4.5" fill="#0E2240" stroke="#00D4E8" stroke-width="1.8"/>
+    </svg>
+  </div>
+
+<script>
+var LOG = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift('[VisitorCard]');
+  console.log.apply(console, args);
+};
+
+LOG('script starting, document.readyState =', document.readyState);
+
+/* =========================================================================
+   CardHost — a thin adapter over the Appspace Card API.
+
+   Per Appspace's "Developing Custom Appspace Cards" guide, the host injects
+   a Card API JS module into index.html that exposes methods like
+   subscribeModelUpdate(), getModel(), notifyOnLoad(), api.xhr(), etc. That
+   guide documents the METHODS but not the exact global name/script tag the
+   host uses to expose them, so this adapter defensively looks for a few
+   plausible globals and also listens for the documented "api.init"
+   postMessage as a second path. If neither is present (e.g. this file is
+   opened directly in a browser, or in the Template Tester before it wires
+   things up), it falls back to the bundled model.json defaults so the card
+   still renders correctly for preview.
+   ========================================================================= */
+var CardHost = (function () {
+  function findApi() {
+    if (window.cardApiService) return { obj: window.cardApiService, name: 'window.cardApiService' };
+    if (window.CardAPI) return { obj: window.CardAPI, name: 'window.CardAPI' };
+    if (window.appspace) return { obj: window.appspace, name: 'window.appspace' };
+    return null;
+  }
+
+  var DEFAULT_MODEL = {
+    inputs: [
+      { name: 'greeting', value: 'Welcome,' },
+      { name: 'apiBaseUrl', value: 'https://pre1.cloud.preview.appspace.com' },
+      { name: 'subjectId', value: '5f9d0e76-aaa4-40b8-8553-1908c8194c0b' },
+      { name: 'refreshToken', value: '6902f98e-b938-4119-948f-3a187515b8c5' },
+      { name: 'locationId', value: '' },
+      { name: 'buildingId', value: '' },
+      { name: 'pollSeconds', value: '15' },
+      { name: 'demoMode', value: [] }
+    ]
+  };
+
+  function onModelUpdate(cb) {
+    var found = findApi();
+    var delivered = false;
+
+    LOG('CardHost.onModelUpdate: known global found =', found ? found.name : 'none');
+
+    if (found && typeof found.obj.subscribeModelUpdate === 'function') {
+      LOG('CardHost: calling', found.name + '.subscribeModelUpdate()');
+      found.obj.subscribeModelUpdate(function (model) {
+        delivered = true;
+        LOG('CardHost: model received via', found.name, '=', JSON.stringify(model));
+        cb(model || DEFAULT_MODEL);
+      });
+      return;
+    }
+
+    window.addEventListener('message', function (evt) {
+      LOG('CardHost: postMessage received, data =', JSON.stringify(evt.data));
+      if (evt && evt.data && evt.data.type === 'api.init') {
+        delivered = true;
+        LOG('CardHost: model received via postMessage api.init');
+        cb(evt.data.model || DEFAULT_MODEL);
+      }
+    });
+
+    // No host responded quickly — assume standalone/preview context.
+    setTimeout(function () {
+      if (!delivered) {
+        LOG('CardHost: no host API or postMessage responded within 400ms — falling back to DEFAULT_MODEL');
+        cb(DEFAULT_MODEL);
+      }
+    }, 400);
+  }
+
+  function notifyOnLoad() {
+    var found = findApi();
+    if (found && typeof found.obj.notifyOnLoad === 'function') {
+      LOG('CardHost.notifyOnLoad: calling', found.name + '.notifyOnLoad()');
+      found.obj.notifyOnLoad();
+      return;
+    }
+    if (window.parent && window.parent !== window) {
+      LOG('CardHost.notifyOnLoad: posting notifyOnLoad message to parent');
+      window.parent.postMessage({ type: 'notifyOnLoad' }, '*');
+    } else {
+      LOG('CardHost.notifyOnLoad: no host API and no parent frame — nothing to notify');
+    }
+  }
+
+  function notifyOnError(message) {
+    var found = findApi();
+    LOG('CardHost.notifyOnError:', message);
+    if (found && typeof found.obj.notifyOnError === 'function') {
+      found.obj.notifyOnError(message);
+      return;
+    }
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'notifyOnError', message: message }, '*');
+    }
+    console.error('[VisitorCard] Card error:', message);
+  }
+
+  function xhr(url, settings) {
+    settings = settings || {};
+    var found = findApi();
+    if (found && typeof found.obj.xhr === 'function') {
+      LOG('CardHost.xhr: using', found.name + '.xhr() for', url);
+      return found.obj.xhr(url, settings);
+    }
+    LOG('CardHost.xhr: no host xhr available, falling back to plain fetch() for', url);
+    return fetch(url, {
+      method: settings.method || 'GET',
+      headers: settings.headers || {},
+      body: settings.data ? JSON.stringify(settings.data) : undefined
+    }).then(function (res) {
+      LOG('CardHost.xhr: fetch response status', res.status, 'for', url);
+      if (!res.ok) throw new Error('Request failed: ' + res.status);
+      return res.json();
+    }).catch(function (err) {
+      LOG('CardHost.xhr: fetch threw for', url, '-', err.message);
+      throw err;
+    });
+  }
+
+  return { onModelUpdate: onModelUpdate, notifyOnLoad: notifyOnLoad, notifyOnError: notifyOnError, xhr: xhr };
+})();
+
+/* =========================================================================
+   Config — read from the card's model (set by whoever configures the card
+   in the Appspace console, per schema.json), with defaults as fallback.
+   ========================================================================= */
+function readConfig(model) {
+  var inputs = (model && model.inputs) || [];
+
+  function val(name, fallback) {
+    var item = inputs.filter(function (i) { return i.name === name; })[0];
+    if (!item || item.value === undefined || item.value === '') return fallback;
+    return item.value;
+  }
+
+  function checked(name, itemValue) {
+    var item = inputs.filter(function (i) { return i.name === name; })[0];
+    if (!item || !item.value) return false;
+    return Array.isArray(item.value) && item.value.indexOf(itemValue) !== -1;
+  }
+
+  var cfg = {
+    greeting: val('greeting', 'Welcome,'),
+    apiBaseUrl: val('apiBaseUrl', 'https://api.cloud.appspace.com'),
+    subjectId: val('subjectId', ''),
+    refreshToken: val('refreshToken', ''),
+    locationId: val('locationId', ''),
+    buildingId: val('buildingId', ''),
+    pollMs: (Number(val('pollSeconds', '15')) || 15) * 1000,
+    demoMode: checked('demoMode', 'demo')
+  };
+
+  LOG('readConfig resolved:', JSON.stringify({
+    greeting: cfg.greeting,
+    apiBaseUrl: cfg.apiBaseUrl,
+    subjectId: cfg.subjectId ? '(set, ' + cfg.subjectId.length + ' chars)' : '(empty)',
+    refreshToken: cfg.refreshToken ? '(set, ' + cfg.refreshToken.length + ' chars)' : '(empty)',
+    locationId: cfg.locationId,
+    buildingId: cfg.buildingId,
+    pollMs: cfg.pollMs,
+    demoMode: cfg.demoMode
+  }));
+
+  return cfg;
+}
+
+/* =========================================================================
+   Rendering
+   ========================================================================= */
+function setText(id, value) {
+  document.getElementById(id).textContent = value;
+}
+
+function formatTime(iso) {
+  if (!iso) return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  var d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderVisitor(greeting, data) {
+  setText('greetingText', greeting);
+  setText('visitorName', data.name || 'Visitor');
+  setText('hostName', data.host || '—');
+  setText('locationName', data.location || '—');
+  setText('arrivalTime', formatTime(data.time));
+
+  var content = document.getElementById('content');
+  content.classList.add('is-visible');
+}
+
+function showIdle() {
+  var content = document.getElementById('content');
+  content.classList.remove('is-visible');
+}
+
+function getParam(name, fallback) {
+  var params = new URLSearchParams(window.location.search);
+  var v = params.get(name);
+  return (v && v.trim().length) ? v.trim() : fallback;
+}
+
+/* =========================================================================
+   Live data — Appspace Visitor Search Events (POST /api/v3/visitormanagement/events/search)
+
+   Auth uses Appspace's Application Integration Token flow: exchange
+   subjectId + refreshToken for a short-lived access token at
+   /api/v3/authorization/token, then Bearer-auth the events search call.
+   The token is cached and refreshed shortly before it expires.
+   ========================================================================= */
+var _accessToken = null;
+var _tokenExpiresAt = 0;
+
+function getAccessToken(cfg) {
+  if (_accessToken && Date.now() < _tokenExpiresAt - 30000) {
+    return Promise.resolve(_accessToken);
+  }
+  return CardHost.xhr(cfg.apiBaseUrl + '/api/v3/authorization/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: {
+      subjectType: 'Application',
+      subjectId: cfg.subjectId,
+      grantType: 'refreshToken',
+      refreshToken: cfg.refreshToken
+    }
+  }).then(function (tok) {
+    _accessToken = tok.accessToken;
+    _tokenExpiresAt = Date.now() + (Number(tok.expiresIn || 0) * 1000);
+    return _accessToken;
+  });
+}
+
+function fetchVisitorCompany(cfg, visitorId) {
+  if (!visitorId) return Promise.resolve(null);
+  // The visitors endpoint doesn't reliably filter by a single ID via query
+  // params (confirmed: passing one still returned the full list), so we
+  // fetch the list and match client-side by the record's `id` field.
+  return getAccessToken(cfg).then(function (token) {
+    return CardHost.xhr(cfg.apiBaseUrl + '/api/v3/visitormanagement/visitors?limit=100', {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+  }).then(function (data) {
+    var items = (data && data.items) || [];
+    var rec = items.filter(function (r) { return r.id === visitorId; })[0];
+    var fields = (rec && rec.customFields) || [];
+    var field = fields.filter(function (f) { return f.displayName === 'Company'; })[0];
+    if (field && field.value && String(field.value).trim()) {
+      LOG('fetchVisitorCompany: found company =', field.value, 'for visitorId', visitorId);
+      return String(field.value).trim();
+    }
+    LOG('fetchVisitorCompany: no Company field set for visitorId', visitorId);
+    return null;
+  }).catch(function (err) {
+    LOG('fetchVisitorCompany: request failed -', err.message, '(falling back to person name)');
+    return null;
+  });
+}
+
+function fetchLatestCheckedInVisitor(cfg) {
+  var body = { activeOnly: true, limit: 20, sort: '-startAt' };
+  if (cfg.locationId) body.locationId = cfg.locationId;
+  if (cfg.buildingId) body.buildingId = cfg.buildingId;
+
+  return getAccessToken(cfg).then(function (token) {
+    return CardHost.xhr(cfg.apiBaseUrl + '/api/v3/visitormanagement/events/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      data: body
+    });
+  }).then(function (data) {
+    LOG('fetchLatestCheckedInVisitor: raw response keys =', Object.keys(data || {}).join(', '), ', size =', data && data.size);
+    var events = data.items || data.events || data.results || [];
+    var checkedIn = [];
+
+    events.forEach(function (evt) {
+      (evt.visitors || []).forEach(function (v) {
+        if (v.visitorStatus !== 'CheckedIn') return;
+        var personName = v.fullName || ((v.firstName || '') + ' ' + (v.lastName || '')).trim();
+        if (!personName) return;
+        var hostName = (evt.hosts && evt.hosts[0] && evt.hosts[0].name) || 'Front Desk';
+        checkedIn.push({
+          visitorId: v.visitorId,
+          name: personName,
+          time: v.checkedInTime,
+          host: hostName,
+          location: (evt.resources && evt.resources[0] && (evt.resources[0].locationName || evt.resources[0].name)) || 'Main Lobby',
+          _sort: v.checkedInTime ? new Date(v.checkedInTime).getTime() : 0
+        });
+      });
+    });
+    checkedIn.sort(function (a, b) {
+      if (b._sort !== a._sort) return b._sort - a._sort;
+      // stable tie-breaker for equal/missing timestamps, so ties don't
+      // flip-flop between polls depending on API response ordering
+      return (a.visitorId || '').localeCompare(b.visitorId || '');
+    });
+
+    var top = checkedIn[0];
+    if (!top) return null;
+
+    return fetchVisitorCompany(cfg, top.visitorId).then(function (company) {
+      if (company) top.name = company;
+      return top;
+    });
+  });
+}
+
+/* =========================================================================
+   Boot
+   ========================================================================= */
+CardHost.onModelUpdate(function (model) {
+  LOG('boot: onModelUpdate fired');
+  var cfg = readConfig(model);
+
+  // Manual override for quick testing, wins over both demo and live data.
+  var overrideName = getParam('name', null);
+  if (overrideName) {
+    LOG('boot: using URL param override, name =', overrideName);
+    renderVisitor(cfg.greeting, {
+      name: overrideName,
+      host: getParam('host', 'Front Desk'),
+      location: getParam('location', 'Main Lobby'),
+      time: getParam('time', null)
+    });
+    CardHost.notifyOnLoad();
+    return;
+  }
+
+  // Initial paint: demo mode shows a sample visitor so the design can be
+  // previewed; live mode starts idle and waits for the first real poll,
+  // so it never shows fabricated data on an actual device.
+  if (cfg.demoMode || !cfg.subjectId || !cfg.refreshToken) {
+    LOG('boot: demo/sample state. demoMode =', cfg.demoMode, 'hasSubjectId =', !!cfg.subjectId, 'hasRefreshToken =', !!cfg.refreshToken);
+    renderVisitor(cfg.greeting, { name: 'Jordan Lee', host: 'Front Desk', location: 'Main Lobby', time: null });
+    CardHost.notifyOnLoad();
+    return;
+  }
+
+  LOG('boot: live mode engaged, starting idle until first poll resolves');
+  showIdle();
+  CardHost.notifyOnLoad();
+
+  LOG('boot: live mode engaged, starting poll loop every', cfg.pollMs, 'ms');
+
+  var lastVisitorKey = null;
+
+  function poll() {
+    LOG('poll: fetching latest checked-in visitor...');
+    fetchLatestCheckedInVisitor(cfg)
+      .then(function (latest) {
+        LOG('poll: result =', JSON.stringify(latest));
+        if (!latest) {
+          if (lastVisitorKey !== null) {
+            LOG('poll: nobody currently checked in — clearing to idle state');
+            lastVisitorKey = null;
+            showIdle();
+          }
+          return;
+        }
+        var key = latest.visitorId + '|' + latest.time;
+        if (key === lastVisitorKey) {
+          LOG('poll: unchanged (still', latest.name + '), skipping re-render');
+          return;
+        }
+        lastVisitorKey = key;
+        renderVisitor(cfg.greeting, latest);
+      })
+      .catch(function (err) {
+        LOG('poll: FAILED -', err.message);
+        CardHost.notifyOnError('Visitor Search Events fetch failed: ' + err.message);
+      });
+  }
+
+  poll();
+  setInterval(poll, cfg.pollMs);
+});
+</script>
+
+</body>
+</html>
