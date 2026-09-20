@@ -456,8 +456,16 @@
     #webchat .webchat__imageAvatar img,
     #webchat .webchat__initialsAvatar {
       border-radius: 50% !important;
-      border: none !important;
-      box-shadow: none !important;
+      outline: none !important;
+    }
+
+    #webchat .webchat__imageAvatar img {
+      image-rendering: auto;
+      image-rendering: smooth;
+    }
+
+    #webchat .webchat__imageAvatar {
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18) !important;
     }
 
     #persistent-chat-dots {
