@@ -1400,10 +1400,15 @@
     });
   }
 
-  // Token endpoint from Copilot Studio -> Settings -> Channels -> Custom website ->
-  // Token Endpoint. Loaded from config.js (see the <script src="config.js"> tag above),
-  // which is untracked — set the real value there, not here.
-  const TOKEN_ENDPOINT = window.LISA_CONFIG.TOKEN_ENDPOINT;
+  // Token endpoints from Copilot Studio -> Settings -> Channels -> Custom website ->
+  // Token Endpoint, one per agent. Loaded from config.js (see the <script src="config.js">
+  // tag above), which is untracked — set the real values there, not here.
+  // Employees and visitors now connect to two entirely separate agents (Lisa
+  // vs. the visitor-only clone), each with its own Direct Line channel and
+  // therefore its own token endpoint — chosen in initWebChat() based on
+  // entryRole, which the splash screen always sets before this ever runs.
+  const EMPLOYEE_TOKEN_ENDPOINT = window.LISA_CONFIG.TOKEN_ENDPOINT;
+  const VISITOR_TOKEN_ENDPOINT = window.LISA_CONFIG.VISITOR_TOKEN_ENDPOINT;
 
   // Strips markdown syntax and emoji from a chunk of text so it reads
   // naturally when spoken. Doesn't touch line structure — that's
@@ -2107,6 +2112,10 @@
 
   async function initWebChat() {
     try {
+      // entryRole is set by the splash screen (selectEmployee / submitVisitorForm)
+      // before startAppAfterSplash() ever calls this function — safe to read here.
+      const TOKEN_ENDPOINT = entryRole === 'visitor' ? VISITOR_TOKEN_ENDPOINT : EMPLOYEE_TOKEN_ENDPOINT;
+
       // Step 1: get the regional Direct Line URL — Microsoft documented approach
       const environmentEndPoint = TOKEN_ENDPOINT.slice(0, TOKEN_ENDPOINT.indexOf('/powervirtualagents'));
       const apiVersion = TOKEN_ENDPOINT.slice(TOKEN_ENDPOINT.indexOf('api-version')).split('=')[1];
