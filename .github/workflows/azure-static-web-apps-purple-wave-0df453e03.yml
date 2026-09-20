@@ -25,12 +25,14 @@ jobs:
           cat > config.js << EOF
           window.LISA_CONFIG = {
             TOKEN_ENDPOINT: "${TOKEN_ENDPOINT}",
+            VISITOR_TOKEN_ENDPOINT: "${VISITOR_TOKEN_ENDPOINT}",
             SPEECH_KEY: "${SPEECH_KEY}",
             SPEECH_REGION: "${SPEECH_REGION}"
           };
           EOF
         env:
           TOKEN_ENDPOINT: ${{ secrets.LISA_TOKEN_ENDPOINT }}
+          VISITOR_TOKEN_ENDPOINT: ${{ secrets.VISITOR_TOKEN_ENDPOINT }}
           SPEECH_KEY: ${{ secrets.LISA_SPEECH_KEY }}
           SPEECH_REGION: ${{ secrets.LISA_SPEECH_REGION }}
       - name: Build And Deploy
