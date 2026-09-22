@@ -1270,6 +1270,8 @@
           </div>
         </div>
       </div>
+      <div class="sidebar-room-name">Digital Workplace Concierge</div>
+
       <div class="sidebar-divider"></div>
 
       <div class="sidebar-hint">Hi, I'm Lisa — your Digital Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
@@ -1390,10 +1392,10 @@
   const displayName = locationName || locationId || 'Digital Workplace Concierge';
   const displayId   = locationId || '';
 
-  ['roomNameMobile'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = displayName;
-  });
+  // roomNameMobile is deliberately left alone — it's Lisa's own identity
+  // subtitle on mobile ("Lisa" / "Digital Workplace Concierge"), not a room
+  // display. Room context, when present, only ever populates the separate
+  // roomIdBadgeMobile/roomIdBadgeDesktop badges below.
 
   // The location badge only appears once real location context resolves —
   // unlike Marge's room badge (always shown, defaulting to "Walk-in"), Lisa
