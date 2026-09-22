@@ -799,22 +799,19 @@
       .sidebar-room-id {
         display: none;
         align-items: center;
-        gap: 6px;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 20px;
-        padding: 4px 12px;
-        font-size: 12px;
+        justify-content: center;
+        gap: 5px;
+        font-size: 11px;
         font-family: 'DM Mono', monospace;
-        color: rgba(255,255,255,0.6);
-        margin-bottom: 40px;
+        color: rgba(255,255,255,0.35);
+        margin-bottom: 10px;
       }
 
-      .sidebar-room-id.visible { display: inline-flex; }
+      .sidebar-room-id.visible { display: flex; }
 
       .sidebar-room-id::before {
         content: '';
-        width: 6px; height: 6px;
+        width: 5px; height: 5px;
         border-radius: 50%;
         background: var(--cobalt);
         flex-shrink: 0;
@@ -826,10 +823,6 @@
         border-radius: 2px;
         margin-bottom: 32px;
       }
-
-      /* Sits directly under the brand lockup when no location badge is shown
-         (personal/mobile default — see .sidebar-room-id.visible above) */
-      .sidebar-room-name + .sidebar-divider { margin-top: 0; }
 
       .sidebar-hint {
         font-size: 13px;
@@ -1277,9 +1270,6 @@
           </div>
         </div>
       </div>
-      <div class="sidebar-room-name" id="roomNameDesktop">Digital Workplace Concierge</div>
-      <div class="sidebar-room-id" id="roomIdBadgeDesktop">--</div>
-
       <div class="sidebar-divider"></div>
 
       <div class="sidebar-hint">Hi, I'm Lisa — your Digital Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
@@ -1293,6 +1283,7 @@
       <div class="sidebar-topics" id="sidebarTopics"></div>
 
       <div class="sidebar-footer">
+        <div class="sidebar-room-id" id="roomIdBadgeDesktop">--</div>
         <a href="mailto:support@tandilab.com" class="sidebar-support-btn">Contact IT Support</a>
         <div class="sidebar-powered">Powered by <img src="copilot-logo.png" alt="Microsoft Copilot" class="powered-logo" /></div>
       </div>
@@ -1371,10 +1362,12 @@
   // Lisa is a personal/mobile-first concierge (Extended Agent Architecture,
   // Section 15) rather than a room kiosk, so location context is optional —
   // present when this page is launched from a lobby/reception kiosk QR code,
-  // absent for the default personal-device case. Query params kept close to
-  // Marge's room_id/room_name naming for consistency across the two frontends.
-  const locationId   = params.get('location_id') || '';
-  const locationName = params.get('location_name') || '';
+  // absent for the default personal-device case. Accepts both location_id/
+  // location_name and room_id/room_name (Marge's own naming, aliased here
+  // so the same QR codes work on either frontend) — room_ wins if both are
+  // somehow present, since it's the more specific, intentional name.
+  const locationId   = params.get('room_id') || params.get('location_id') || '';
+  const locationName = params.get('room_name') || params.get('location_name') || '';
   const hasLocationContext = Boolean(locationId || locationName);
 
   // Set by selectEmployee() / submitVisitorForm() once the splash choice is
@@ -1397,7 +1390,7 @@
   const displayName = locationName || locationId || 'Digital Workplace Concierge';
   const displayId   = locationId || '';
 
-  ['roomNameMobile', 'roomNameDesktop'].forEach(id => {
+  ['roomNameMobile'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = displayName;
   });
@@ -2117,6 +2110,30 @@
                 },
               },
             });
+
+            // Room context from a QR-code URL (room_id / room_name), sent as
+            // its own follow-up message once identity is established — never
+            // combined into entryToken itself, since __employee__/__visitor__
+            // always has to go first regardless of whether a room is present.
+            // Lisa's instructions hold this silently and reuse it whenever a
+            // request routes to Marge, so the person never has to say which
+            // room they're in. Same textFormat: 'plain' protection as above —
+            // __room__ has the identical double-underscore Markdown risk.
+            if (hasLocationContext) {
+              setTimeout(() => {
+                dispatch({
+                  type: 'DIRECT_LINE/POST_ACTIVITY',
+                  meta: { method: 'keyboard' },
+                  payload: {
+                    activity: {
+                      type: 'message',
+                      text: `__room__:${locationId}|${locationName}`,
+                      textFormat: 'plain',
+                    },
+                  },
+                });
+              }, 900);
+            }
           }, 500);
         }
 
