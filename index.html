@@ -954,7 +954,7 @@
     .splash-overlay {
       position: fixed;
       inset: 0;
-      z-index: 100;
+      z-index: 1100;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2521,6 +2521,7 @@
       // through by default.
       visitorVerified = false;
       setVisitorVerifying(true);
+      document.getElementById('visitorFormError').classList.remove('visible');
     }
 
     const errorTimer = setTimeout(() => {
@@ -2536,8 +2537,9 @@
       visitorVerificationTimer = setTimeout(() => {
         if (!visitorVerified) {
           setVisitorVerifying(false);
-          document.getElementById('visitorFormError').textContent =
-            "We couldn't verify those details — please double-check the code and email and try again.";
+          const err = document.getElementById('visitorFormError');
+          err.textContent = "We couldn't verify those details — please double-check the code and email and try again.";
+          err.classList.add('visible');
         }
       }, 12000);
     }
