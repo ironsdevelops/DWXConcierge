@@ -2228,7 +2228,7 @@
               activity.from &&
               activity.from.role === 'user' &&
               typeof activity.text === 'string' &&
-              (activity.text === '__employee__' || activity.text.startsWith('__visitor__:'));
+              (activity.text === '__employee__' || activity.text.startsWith('__visitor__:') || activity.text.startsWith('__room__:'));
 
             if (isEntryToken) {
               return () => null;
