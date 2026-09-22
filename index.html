@@ -2230,7 +2230,20 @@
               typeof activity.text === 'string' &&
               (activity.text === '__employee__' || activity.text.startsWith('__visitor__:') || activity.text.startsWith('__room__:'));
 
-            if (isEntryToken) {
+            // The bot's own __verified__ marker — sent as a separate message
+            // alongside its real, human-readable reply once visitor
+            // verification succeeds (see the visitor agent's VISITOR
+            // VERIFICATION instructions). Same hiding principle as the
+            // user-sent tokens above, just checked on the bot's own
+            // activities instead of the user's.
+            const isVerifiedMarker =
+              activity &&
+              activity.from &&
+              activity.from.role === 'bot' &&
+              typeof activity.text === 'string' &&
+              activity.text.trim() === '__verified__';
+
+            if (isEntryToken || isVerifiedMarker) {
               return () => null;
             }
             return next(card);
