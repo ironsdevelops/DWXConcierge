@@ -2513,7 +2513,7 @@
     // screen's wait/timeout logic — for isolating whether VISITORVERIFIEDOK is
     // actually being sent and received correctly. Flip back to false (or
     // delete this block) to restore real gating.
-    const DISABLE_VISITOR_GATING_TEMP = false;
+    const DISABLE_VISITOR_GATING_TEMP = true;
 
     const isVisitorPath = entryRole === 'visitor' && !DISABLE_VISITOR_GATING_TEMP;
 
