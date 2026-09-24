@@ -2507,7 +2507,15 @@
   }
 
   function startAppAfterSplash() {
-    const isVisitorPath = entryRole === 'visitor';
+    // ── TEMP DEBUG SWITCH ──
+    // Set to true to bypass visitor-verification gating entirely and see
+    // the raw conversation unfold in chat, unobstructed by the splash
+    // screen's wait/timeout logic — for isolating whether __verified__ is
+    // actually being sent and received correctly. Flip back to false (or
+    // delete this block) to restore real gating.
+    const DISABLE_VISITOR_GATING_TEMP = true;
+
+    const isVisitorPath = entryRole === 'visitor' && !DISABLE_VISITOR_GATING_TEMP;
 
     if (!isVisitorPath) {
       // Employee path — unchanged, immediate dismissal exactly as before.
