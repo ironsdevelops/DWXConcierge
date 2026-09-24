@@ -2022,7 +2022,7 @@
             // screen and let the real conversation (already connected and
             // waiting underneath it) become visible. See startAppAfterSplash
             // for the fail-closed timeout this cancels.
-            if (entryRole === 'visitor' && !visitorVerified && activity.text.trim() === '__verified__') {
+            if (entryRole === 'visitor' && !visitorVerified && activity.text.trim() === 'VISITORVERIFIEDOK') {
               visitorVerified = true;
               if (visitorVerificationTimer) clearTimeout(visitorVerificationTimer);
               document.getElementById('splashOverlay').classList.add('hidden');
@@ -2251,7 +2251,7 @@
               typeof activity.text === 'string' &&
               (activity.text === '__employee__' || activity.text.startsWith('__visitor__:') || activity.text.startsWith('__room__:'));
 
-            // The bot's own __verified__ marker — sent as a separate message
+            // The bot's own VISITORVERIFIEDOK marker — sent as a separate message
             // alongside its real, human-readable reply once visitor
             // verification succeeds (see the visitor agent's VISITOR
             // VERIFICATION instructions). Same hiding principle as the
@@ -2262,7 +2262,7 @@
               activity.from &&
               activity.from.role === 'bot' &&
               typeof activity.text === 'string' &&
-              activity.text.trim() === '__verified__';
+              activity.text.trim() === 'VISITORVERIFIEDOK';
 
             if (isEntryToken || isVerifiedMarker) {
               return () => null;
@@ -2462,7 +2462,7 @@
   }
 
   // Toggles the visitor form between its normal and "verifying" states —
-  // used while waiting for the bot's __verified__ marker (see
+  // used while waiting for the bot's VISITORVERIFIEDOK marker (see
   // startAppAfterSplash and the DIRECT_LINE/INCOMING_ACTIVITY handler).
   function setVisitorVerifying(isVerifying) {
     const btn = document.getElementById('visitorContinueBtn');
@@ -2510,7 +2510,7 @@
     // ── TEMP DEBUG SWITCH ──
     // Set to true to bypass visitor-verification gating entirely and see
     // the raw conversation unfold in chat, unobstructed by the splash
-    // screen's wait/timeout logic — for isolating whether __verified__ is
+    // screen's wait/timeout logic — for isolating whether VISITORVERIFIEDOK is
     // actually being sent and received correctly. Flip back to false (or
     // delete this block) to restore real gating.
     const DISABLE_VISITOR_GATING_TEMP = true;
@@ -2522,10 +2522,10 @@
       document.getElementById('splashOverlay').classList.add('hidden');
     } else {
       // Visitor path — the splash stays up. It only actually dismisses once
-      // the bot's __verified__ marker arrives (see the
+      // the bot's VISITORVERIFIEDOK marker arrives (see the
       // DIRECT_LINE/INCOMING_ACTIVITY handler in createStore()). Fail-closed:
       // an invalid code, a timeout, or any outcome besides a confirmed
-      // __verified__ leaves the visitor here rather than letting them
+      // VISITORVERIFIEDOK leaves the visitor here rather than letting them
       // through by default.
       visitorVerified = false;
       setVisitorVerifying(true);
