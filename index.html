@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lisa — Digital Workplace Concierge</title>
+  <title>Lisa — Intelligent Workplace Concierge</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.botframework.com/botframework-webchat/4.18.0/webchat.js"></script>
-  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
   <!-- config.js holds the real Direct Line endpoint and Speech key/region — it is listed in
        .gitignore and never committed. See config.example.js for the required shape. -->
   <script src="config.js"></script>
@@ -655,6 +654,53 @@
       border-color: var(--cobalt);
     }
 
+    /* ── MOBILE / TABLET QUICK ACTIONS ──
+       One horizontally scrolling row of chips under the header, so phones get
+       the same shortcuts as the desktop sidebar without adding height beyond a
+       single line. Hidden on desktop (the sidebar has them) and in voice mode. */
+    .quick-strip {
+      display: none;
+      flex-shrink: 0;
+      gap: 8px;
+      padding: 8px 12px;
+      overflow-x: auto;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .quick-strip::-webkit-scrollbar { display: none; }
+    .quick-strip.visible { display: flex; }
+    body.voice-active .quick-strip { display: none; }
+
+    .quick-chip {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(26,110,189,0.35);
+      background: rgba(26,110,189,0.06);
+      color: var(--cobalt);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .quick-chip:active { background: var(--cobalt); color: #fff; }
+
+    /* Web Chat resets list padding inside bubbles; restore it. (Previously
+       injected from script 800 ms after render, which briefly showed the
+       unstyled lists.) */
+    #webchat .webchat__bubble__content ol,
+    #webchat .webchat__bubble__content ul { padding-left: 1.5em !important; margin: 6px 0 !important; }
+    #webchat .webchat__bubble__content ol { list-style-type: decimal !important; }
+    #webchat .webchat__bubble__content ul { list-style-type: disc !important; }
+    #webchat .webchat__bubble__content li { margin-bottom: 4px !important; line-height: 1.5 !important; }
+    #webchat .webchat__bubble__content p  { margin: 4px 0 !important; }
+
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 
@@ -941,6 +987,7 @@
       /* Hide mobile-only elements */
       .header { display: none; }
       .footer { display: none; }
+      .quick-strip, .quick-strip.visible { display: none; }
     }
 
     /* ==============================================
@@ -1185,7 +1232,7 @@
     </div>
 
     <div class="splash-title">Welcome — I'm Lisa</div>
-    <div class="splash-subtitle">Your Digital Workplace Concierge. To get you the right experience, let me know who's joining today.</div>
+    <div class="splash-subtitle">Your Intelligent Workplace Concierge. To get you the right experience, let me know who's joining today.</div>
 
     <div class="splash-choices" id="splashChoices">
       <button class="splash-choice-btn" onclick="selectEmployee()">
@@ -1240,7 +1287,7 @@
       <div class="header-divider"></div>
       <div class="header-info">
         <div class="room-label">Lisa</div>
-        <div class="room-name" id="roomNameMobile">Digital Workplace Concierge</div>
+        <div class="room-name" id="roomNameMobile">Intelligent Workplace Concierge</div>
       </div>
       <div class="header-meta">
         <div class="room-id-badge" id="roomIdBadgeMobile">--</div>
@@ -1248,6 +1295,9 @@
       </div>
     </div>
   </header>
+
+  <!-- MOBILE / TABLET QUICK ACTIONS (hidden on desktop; filled by renderSidebarTopics) -->
+  <nav class="quick-strip" id="quickStrip" aria-label="Quick actions"></nav>
 
   <!-- DESKTOP SIDEBAR (hidden on mobile/tablet) -->
   <aside class="sidebar">
@@ -1270,11 +1320,11 @@
           </div>
         </div>
       </div>
-      <div class="sidebar-room-name">Digital Workplace Concierge</div>
+      <div class="sidebar-room-name">Intelligent Workplace Concierge</div>
 
       <div class="sidebar-divider"></div>
 
-      <div class="sidebar-hint">Hi, I'm Lisa — your Digital Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
+      <div class="sidebar-hint">Hi, I'm Lisa — your Intelligent Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
 
       <!-- Populated by renderSidebarTopics() once the splash choice is made —
            see the SIDEBAR_TOPICS_EMPLOYEE / SIDEBAR_TOPICS_VISITOR arrays in
@@ -1389,17 +1439,38 @@
   // always false/null, on the employee path.
   let visitorVerified = false;
   let visitorVerificationTimer = null;
+  let visitorGraceTimer = null;
+  let lastVisitorReply = '';
+  let connectErrorTimer = null;
+
+  // Visitor gating is on by default. Add ?gating=off to the URL to bypass it
+  // for a session (e.g. if the visitor agent misbehaves during a demo).
+  const VISITOR_GATING = params.get('gating') !== 'off';
+  const VISITOR_VERIFY_TIMEOUT_MS = 45000; // verification flow can be slow on a cold start
+  const VISITOR_MARKER_GRACE_MS = 5000;    // wait for a marker sent just after the greeting
+
+  // Tolerant marker match: the model sometimes bolds it, adds punctuation, or
+  // puts it at the start of the greeting instead of in its own message.
+  const VERIFIED_MARKER_RE = /[*_`]*VISITOR\s*VERIFIED\s*OK[*_`.!]*/i;
+  const VISITOR_FAILURE_RE = /couldn['’]?t|could not|unable to|not able to|doesn['’]?t match|does not match|not valid|invalid|no (visit|invitation|booking)|try again|double-check/i;
+
+  function hasVerifiedMarker(text) {
+    return typeof text === 'string' && VERIFIED_MARKER_RE.test(text);
+  }
+  function stripVerifiedMarker(text) {
+    return text.replace(VERIFIED_MARKER_RE, '').replace(/^\s+/, '').trim();
+  }
 
   const ENTRY_WAITING_MESSAGES = {
     employee: 'Please wait while we get you signed in for a personalised experience.',
     visitor: 'Please wait while we verify your visitor details.',
   };
 
-  const displayName = locationName || locationId || 'Digital Workplace Concierge';
+  const displayName = locationName || locationId || 'Intelligent Workplace Concierge';
   const displayId   = locationId || '';
 
   // roomNameMobile is deliberately left alone — it's Lisa's own identity
-  // subtitle on mobile ("Lisa" / "Digital Workplace Concierge"), not a room
+  // subtitle on mobile ("Lisa" / "Intelligent Workplace Concierge"), not a room
   // display. Room context, when present, only ever populates the separate
   // roomIdBadgeMobile/roomIdBadgeDesktop badges below.
 
@@ -1550,6 +1621,29 @@
   let voiceModeActive = false;
   let lastBotSpokenText = null;
   let lastBotImageUrl = null;
+  let voiceState = 'idle'; // idle | listening | thinking | speaking
+
+  // The Speech SDK is large, so it is loaded the first time voice mode is
+  // opened rather than on every page load.
+  const SPEECH_SDK_URL = 'https://aka.ms/csspeech/jsbrowserpackageraw';
+  let speechSdkPromise = null;
+  function loadSpeechSdk() {
+    if (typeof SpeechSDK !== 'undefined') return Promise.resolve();
+    if (!speechSdkPromise) {
+      speechSdkPromise = new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = SPEECH_SDK_URL;
+        el.onload = () => resolve();
+        el.onerror = () => { speechSdkPromise = null; reject(new Error('Speech SDK failed to load')); };
+        document.head.appendChild(el);
+      });
+    }
+    return speechSdkPromise;
+  }
+
+  // Names and places the recogniser should favour.
+  const SPEECH_PHRASES = ['Lisa', 'Marge', 'Ned', 'TANDI', 'daily digest', 'desk', 'Boardroom', 'Pod 1', 'Pod 2',
+    'Mermaid', 'Swan', 'Winchester', 'Worlds End', 'Europe Innovation Hub', 'Europe HQ', 'energy smart'];
 
   const VoiceController = {
     speechConfig: null,
@@ -1563,7 +1657,15 @@
       this.speechConfig.speechRecognitionLanguage = SPEECH_LOCALE;
       this.speechConfig.speechSynthesisVoiceName = SPEECH_VOICE_NAME;
       this.speechConfig.speechSynthesisOutputFormat = SpeechSDK.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+      // Allow a natural pause mid-sentence before deciding the user has
+      // finished (the default cuts people off), and give them time to start.
+      this.speechConfig.setProperty(SpeechSDK.PropertyId.Speech_SegmentationSilenceTimeoutMs, '1200');
+      this.speechConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, '8000');
     },
+
+    // Replies are queued so two bot messages in a row (e.g. a status line
+    // then the answer) are spoken one after the other, not over each other.
+    queue: [],
 
     setState(state, mainText, subText) {
       const core = document.getElementById('voiceCore');
@@ -1573,6 +1675,7 @@
       const main = document.getElementById('voiceStatusMain');
       const sub = document.getElementById('voiceStatusSub');
 
+      voiceState = state;
       main.textContent = mainText;
       sub.textContent = subText;
 
@@ -1649,6 +1752,7 @@
 
     stop() {
       voiceModeActive = false;
+      this.queue = [];
       this.stopAudio();
 
       if (this.activeRecognizer) {
@@ -1672,10 +1776,22 @@
       const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
       const recognizer = new SpeechSDK.SpeechRecognizer(this.speechConfig, audioConfig);
       this.activeRecognizer = recognizer;
+      try {
+        const phrases = SpeechSDK.PhraseListGrammar.fromRecognizer(recognizer);
+        SPEECH_PHRASES.forEach(p => phrases.addPhrase(p));
+      } catch (e) { /* phrase lists are optional */ }
+      // Show words as they are recognised, so the user can see they're heard.
+      recognizer.recognizing = (_s, e) => {
+        if (voiceModeActive && e.result && e.result.text) {
+          document.getElementById('voiceStatusSub').textContent = e.result.text;
+        }
+      };
 
       recognizer.recognizeOnceAsync(result => {
+        // Superseded (closed because a reply arrived): ignore this result.
+        if (this.activeRecognizer !== recognizer) { try { recognizer.close(); } catch (e) {} return; }
         recognizer.close();
-        if (this.activeRecognizer === recognizer) this.activeRecognizer = null;
+        this.activeRecognizer = null;
         if (!voiceModeActive) return;
 
         if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech && result.text) {
@@ -1695,9 +1811,10 @@
           this.listenOnce();
         }
       }, err => {
+        if (this.activeRecognizer !== recognizer) return; // superseded
         console.warn('Lisa voice mode: recognition error', err);
-        recognizer.close();
-        if (this.activeRecognizer === recognizer) this.activeRecognizer = null;
+        try { recognizer.close(); } catch (e) {}
+        this.activeRecognizer = null;
         if (voiceModeActive) {
           this.setState('idle', 'Having trouble hearing you', 'Tap the orb to try again');
         }
@@ -1708,8 +1825,25 @@
     // while voice mode is active.
     handleBotReply(spokenText, imageUrl) {
       if (!voiceModeActive || typeof SpeechSDK === 'undefined') return;
-      this.showImage(imageUrl);
+      if (imageUrl) this.showImage(imageUrl);
+      if (this.activeSynthesizer || this.currentAudio) {
+        this.queue.push(spokenText);
+        return;
+      }
+      // A reply that arrives while the mic is open (e.g. a slow follow-up)
+      // takes priority: close the mic and speak it.
+      if (this.activeRecognizer) {
+        try { this.activeRecognizer.close(); } catch (e) { /* already closed */ }
+        this.activeRecognizer = null;
+      }
       this.speak(spokenText);
+    },
+
+    // After a clip ends: speak the next queued reply, or listen again.
+    next() {
+      if (!voiceModeActive) return;
+      if (this.queue.length) { this.speak(this.queue.shift()); return; }
+      setTimeout(() => { if (voiceModeActive && !this.activeRecognizer && !this.currentAudio) this.listenOnce(); }, 250);
     },
 
     speak(text) {
@@ -1731,13 +1865,10 @@
             audio.onended = () => {
               URL.revokeObjectURL(url);
               if (this.currentAudio === audio) this.currentAudio = null;
-              // Small buffer before reopening the mic. On Bluetooth
-              // headsets in particular, playback and microphone capture
-              // use different hardware audio profiles, and switching
-              // between them isn't instant — reopening the mic the
-              // instant playback ends can clip the very start of
-              // whatever the user says next.
-              if (voiceModeActive) setTimeout(() => this.listenOnce(), 250);
+              // next() waits 250 ms before reopening the mic: on Bluetooth
+              // headsets switching from playback to capture isn't instant,
+              // and reopening at once clips the start of what the user says.
+              this.next();
             };
 
             let started = false;
@@ -1746,7 +1877,8 @@
               started = true;
               audio.play().catch(err => {
                 console.warn('Lisa voice mode: audio playback blocked', err);
-                if (voiceModeActive) this.listenOnce();
+                if (this.currentAudio === audio) this.currentAudio = null;
+                this.next();
               });
             };
 
@@ -1760,15 +1892,15 @@
               audio.addEventListener('canplaythrough', startPlayback, { once: true });
               setTimeout(startPlayback, 800); // fallback if the event never fires
             }
-          } else if (voiceModeActive) {
-            this.listenOnce();
+          } else {
+            this.next();
           }
         },
         err => {
           console.warn('Lisa voice mode: synthesis error', err);
           synthesizer.close();
           if (this.activeSynthesizer === synthesizer) this.activeSynthesizer = null;
-          if (voiceModeActive) this.listenOnce();
+          this.next();
         }
       );
     },
@@ -1781,24 +1913,34 @@
     },
 
     interrupt() {
-      // Tap-to-interrupt: stop whatever is playing and go straight back
-      // to listening, rather than waiting for the audio to finish.
+      // Tap-to-interrupt: stop whatever is playing (and anything queued)
+      // and go straight back to listening.
+      this.queue = [];
       this.stopAudio();
       this.listenOnce();
     }
   };
 
-  function enterVoiceMode() {
+  async function enterVoiceMode() {
     if (voiceModeActive) return; // already in a session — never start a second one
     voiceModeActive = true;
+    document.body.classList.add('voice-active');
     document.getElementById('voiceToggleBtn').style.display = 'none';
     document.getElementById('voiceOverlay').classList.add('active');
     document.getElementById('voiceTranscriptLabel').classList.add('active');
     document.getElementById('webchat').classList.add('voice-split');
-    VoiceController.start();
+    VoiceController.setState('thinking', 'Getting ready', 'One moment');
+    try {
+      await loadSpeechSdk();
+    } catch (e) {
+      VoiceController.setState('idle', 'Voice is unavailable', 'Switch to chat to carry on');
+      return;
+    }
+    if (voiceModeActive) VoiceController.start();
   }
 
   function exitVoiceMode() {
+    document.body.classList.remove('voice-active');
     document.getElementById('voiceOverlay').classList.remove('active');
     document.getElementById('voiceTranscriptLabel').classList.remove('active');
     document.getElementById('voiceToggleBtn').style.display = 'flex';
@@ -1807,10 +1949,10 @@
   }
 
   function handleOrbTap() {
-    const main = document.getElementById('voiceStatusMain').textContent;
-    if (main === 'Lisa is speaking') {
+    if (typeof SpeechSDK === 'undefined') return;
+    if (voiceState === 'speaking') {
       VoiceController.interrupt();
-    } else if (main === 'Ready when you are' || main.indexOf('trouble') > -1) {
+    } else if (voiceState === 'idle') {
       VoiceController.listenOnce();
     }
   }
@@ -1830,7 +1972,6 @@
     persistentDots = document.getElementById('persistent-chat-dots');
     if (!persistentDots) return null;
 
-    window.persistentDots = persistentDots;
     return persistentDots;
   }
 
@@ -1960,6 +2101,42 @@
     attach();
   }
 
+  // Sends the splash-selected entry token as the conversation's first
+  // message (textFormat plain so the double underscores survive), then, on
+  // the first send only, the room context from a QR-code URL. Also used to
+  // resend a corrected visitor email/code on the same connection.
+  function postEntryToken(dispatch, withRoom) {
+    dispatch({
+      type: 'DIRECT_LINE/POST_ACTIVITY',
+      meta: { method: 'keyboard' },
+      payload: { activity: { type: 'message', text: entryToken, textFormat: 'plain' } },
+    });
+    if (!withRoom) return;
+    // Room context from a QR-code URL (room_id / room_name), sent as
+    // its own follow-up message once identity is established — never
+    // combined into entryToken itself, since __employee__/__visitor__
+    // always has to go first regardless of whether a room is present.
+    // Lisa's instructions hold this silently and reuse it whenever a
+    // request routes to Marge, so the person never has to say which
+    // room they're in. Same textFormat: 'plain' protection as above —
+    // __room__ has the identical double-underscore Markdown risk.
+    if (hasLocationContext) {
+      setTimeout(() => {
+        dispatch({
+          type: 'DIRECT_LINE/POST_ACTIVITY',
+          meta: { method: 'keyboard' },
+          payload: {
+            activity: {
+              type: 'message',
+              text: `__room__:${locationId}|${locationName}`,
+              textFormat: 'plain',
+            },
+          },
+        });
+      }, 900);
+    }
+  }
+
   function createStore() {
     return window.WebChat.createStore(
       {},
@@ -1969,7 +2146,21 @@
         // remember it, so voice mode can speak it (or repeat it later
         // if the user switches into voice mode mid-conversation).
         if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
-          const activity = action.payload && action.payload.activity;
+          let activity = action.payload && action.payload.activity;
+
+          // Visitor verification marker: act on it, then remove it from the
+          // text so it never shows or gets spoken. A message that was only
+          // the marker is dropped entirely.
+          if (activity && activity.type === 'message' && activity.from && activity.from.role === 'bot' && hasVerifiedMarker(activity.text)) {
+            if (entryRole === 'visitor') onVisitorVerified();
+            const rest = stripVerifiedMarker(activity.text);
+            if (!rest) return; // marker-only message: nothing to render
+            activity = { ...activity, text: rest, speak: undefined };
+            action = { ...action, payload: { ...action.payload, activity } };
+          } else if (entryRole === 'visitor' && VISITOR_GATING && !visitorVerified && activity && activity.type === 'message' &&
+                     activity.from && activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic) && activity.text) {
+            onVisitorReplyWithoutMarker(activity.text);
+          }
 
           // Show our persistent indicator as soon as Direct Line tells us the
           // bot is typing. Do not wait for Web Chat's own transient DOM node.
@@ -2016,18 +2207,6 @@
             // inputHint have nothing left to drive in chat mode.
             // Voice mode's VoiceController is the sole speech engine.
 
-            // Visitor verification gate — this marker is already hidden
-            // from the transcript by the activityMiddleware filter below
-            // (isVerifiedMarker). Once it arrives, dismiss the splash
-            // screen and let the real conversation (already connected and
-            // waiting underneath it) become visible. See startAppAfterSplash
-            // for the fail-closed timeout this cancels.
-            if (entryRole === 'visitor' && !visitorVerified && activity.text.trim() === 'VISITORVERIFIEDOK') {
-              visitorVerified = true;
-              if (visitorVerificationTimer) clearTimeout(visitorVerificationTimer);
-              document.getElementById('splashOverlay').classList.add('hidden');
-              setVisitorVerifying(false);
-            }
           }
         }
 
@@ -2066,96 +2245,11 @@
             showPersistentDots();
           }
 
-          // Send the splash-selected entry token as a hidden postBack —
-          // the first and only activity before it, so this genuinely is
-          // the first message of the conversation, matching how the
-          // Copilot Studio test pane behaves when you type it directly.
-          //
-          // A separate startConversation event used to fire here first
-          // (Marge's original pattern, for triggering the system Greeting
-          // topic), but that's no longer relevant now that Lisa's own
-          // Special-tokens instructions and the Verify Visitor Entry topic
-          // handle conversation opening directly off this token. Keeping
-          // that event around was actively harmful, not just redundant —
-          // confirmed by testing: the same literal token text worked
-          // correctly typed directly into the Copilot Studio test pane,
-          // but failed to trigger Verify Visitor Entry when sent through
-          // this real Direct Line connection with the event preceding it.
-          // Removing the event is the fix being tested.
-          //
-          // A short delay is kept purely to let the connection settle
-          // before sending anything — not to wait for any prior activity
-          // to be processed first.
-          //
-          // location_id (lobby-kiosk deployment) is deliberately NOT merged
-          // into this token — the visitor token already uses its own "|"
-          // delimiter for email/code, and combining both would need
-          // multi-segment parsing on the Copilot Studio side for a use case
-          // (kiosk deployment) that isn't the current focus. If lobby-kiosk
-          // support is built out later, this is the spot to revisit.
-          setTimeout(() => {
-            dispatch({
-              type: 'DIRECT_LINE/POST_ACTIVITY',
-              meta: { method: 'keyboard' },
-              payload: {
-                activity: {
-                  // No postBack flag here — this is a live test. postBack
-                  // conventionally signals "a value submitted from
-                  // something the bot already presented" (a button, a
-                  // card), not free-form input. __employee__ works fine
-                  // flagged this way because it's handled entirely by
-                  // instruction-following, which doesn't care about the
-                  // flag — but __visitor__:... is now handled by a topic
-                  // using generative trigger-matching, and it's plausible
-                  // that pipeline treats postback-flagged activities
-                  // differently, bypassing normal topic selection for
-                  // them. If removing this flag fixes the visitor path,
-                  // that confirms it and this should stay removed. If it
-                  // doesn't, put channelData: { postBack: true } back —
-                  // it wasn't the cause, and hiding this from the visible
-                  // transcript (its original purpose) is worth having.
-                  type: 'message',
-                  text: entryToken,
-                  // textFormat: 'plain' — the token contains __visitor__,
-                  // and double underscores are Markdown bold syntax. Web
-                  // Chat renders with renderMarkdown: true, and a rendered
-                  // transcript bubble was observed showing "visitor:..."
-                  // with the underscores missing entirely — consistent
-                  // with Markdown interpreting them as bold formatting
-                  // rather than literal characters. This forces plain-text
-                  // handling so the literal string can't be reinterpreted
-                  // at any point in the pipeline, whether that's actually
-                  // been affecting the real data Copilot Studio receives
-                  // or only ever affected the visual display.
-                  textFormat: 'plain',
-                },
-              },
-            });
-
-            // Room context from a QR-code URL (room_id / room_name), sent as
-            // its own follow-up message once identity is established — never
-            // combined into entryToken itself, since __employee__/__visitor__
-            // always has to go first regardless of whether a room is present.
-            // Lisa's instructions hold this silently and reuse it whenever a
-            // request routes to Marge, so the person never has to say which
-            // room they're in. Same textFormat: 'plain' protection as above —
-            // __room__ has the identical double-underscore Markdown risk.
-            if (hasLocationContext) {
-              setTimeout(() => {
-                dispatch({
-                  type: 'DIRECT_LINE/POST_ACTIVITY',
-                  meta: { method: 'keyboard' },
-                  payload: {
-                    activity: {
-                      type: 'message',
-                      text: `__room__:${locationId}|${locationName}`,
-                      textFormat: 'plain',
-                    },
-                  },
-                });
-              }, 900);
-            }
-          }, 500);
+          // Send the splash-selected entry token as the first message.
+          // No startConversation event first: with it, the visitor token
+          // failed to trigger Verify Visitor Entry (tested). The short delay
+          // only lets the connection settle.
+          setTimeout(() => postEntryToken(dispatch, true), 500);
         }
 
         return next(action);
@@ -2261,8 +2355,8 @@
               activity &&
               activity.from &&
               activity.from.role === 'bot' &&
-              typeof activity.text === 'string' &&
-              activity.text.trim() === 'VISITORVERIFIEDOK';
+              hasVerifiedMarker(activity.text) &&
+              !stripVerifiedMarker(activity.text);
 
             if (isEntryToken || isVerifiedMarker) {
               return () => null;
@@ -2301,20 +2395,6 @@
         document.getElementById('webchat')
       );
 
-      // Fix list rendering — Web Chat resets ol/ul padding to 0 internally
-      setTimeout(() => {
-        const style = document.createElement('style');
-        style.textContent = [
-          '#webchat .webchat__bubble__content ol,',
-          '#webchat .webchat__bubble__content ul { padding-left: 1.5em !important; margin: 6px 0 !important; }',
-          '#webchat .webchat__bubble__content ol { list-style-type: decimal !important; }',
-          '#webchat .webchat__bubble__content ul { list-style-type: disc !important; }',
-          '#webchat .webchat__bubble__content li { margin-bottom: 4px !important; line-height: 1.5 !important; }',
-          '#webchat .webchat__bubble__content p  { margin: 4px 0 !important; }'
-        ].join(' ');
-        document.head.appendChild(style);
-      }, 800);
-
     } catch (err) {
       console.error('Web Chat init error:', err);
       showError();
@@ -2322,6 +2402,7 @@
   }
 
   function setConnected() {
+    if (connectErrorTimer) { clearTimeout(connectErrorTimer); connectErrorTimer = null; }
     const loading = document.getElementById('loadingScreen');
     if (loading) loading.style.display = 'none';
     ['statusDotMobile', 'statusDotDesktop'].forEach(id => {
@@ -2390,19 +2471,24 @@
   // instruction (visitor-specific help only: host, wayfinding, own visit
   // details), so a visitor is never invited to tap something she'd have to
   // decline anyway.
+  // label: desktop sidebar. chip: shorter text for the mobile strip.
+  // text: what is sent to Lisa, worded to route the way her instructions
+  // expect (digest, Ned for desks/meetings/faults, Marge for room tech).
   const SIDEBAR_TOPICS_EMPLOYEE = [
-    { label: "Who's visiting today?", text: 'Who is visiting today?' },
-    { label: 'Check my next meeting', text: 'What is my next meeting?' },
-    { label: 'Help with a meeting room', text: 'I need help with a meeting room' },
-    { label: 'Daily Digest', text: 'Can I see my daily digest?' },
-    { label: "Something isn't working", text: 'Something is not working' },
+    { label: 'Daily Digest',              chip: 'Daily Digest',   text: 'Can I see my daily digest?' },
+    { label: 'Book a desk',               chip: 'Book a desk',    text: 'I need to book a desk' },
+    { label: 'Book a meeting or room',    chip: 'Book a meeting', text: 'I need to book a meeting' },
+    { label: "Who's visiting today?",     chip: 'Visitors today', text: 'Who is visiting today?' },
+    { label: "What's for lunch?",         chip: 'Lunch',          text: "What's for lunch today?" },
+    { label: 'Help with a meeting room',  chip: 'Room help',      text: 'I need help with a meeting room' },
+    { label: 'Report a building issue',   chip: 'Report an issue', text: 'I want to report a problem in the building' },
   ];
 
   const SIDEBAR_TOPICS_VISITOR = [
-    { label: 'Find my host', text: 'Where can I find my host?' },
-    { label: 'Check my visit details', text: 'What is my visit for?' },
-    { label: 'Help with a meeting room', text: 'I need help with a meeting room' },
-    { label: "Something isn't working", text: 'Something is not working' },
+    { label: 'Find my host',              chip: 'Find my host',   text: 'Where can I find my host?' },
+    { label: 'Check my visit details',    chip: 'My visit',       text: 'What is my visit for?' },
+    { label: 'Help with a meeting room',  chip: 'Room help',      text: 'I need help with a meeting room' },
+    { label: "Something isn't working",   chip: 'Report an issue', text: 'Something is not working' },
   ];
 
   function renderSidebarTopics(role) {
@@ -2429,6 +2515,21 @@
       const idx = parseInt(btn.getAttribute('data-topic-index'), 10);
       btn.addEventListener('click', () => sendQuickMessage(topics[idx].text));
     });
+
+    // Same topics as chips on mobile/tablet. Built with DOM calls rather than
+    // innerHTML so no label text is ever parsed as markup.
+    const strip = document.getElementById('quickStrip');
+    if (strip) {
+      strip.replaceChildren(...topics.map(t => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'quick-chip';
+        chip.textContent = t.chip || t.label;
+        chip.addEventListener('click', () => sendQuickMessage(t.text));
+        return chip;
+      }));
+      strip.classList.add('visible');
+    }
   }
 
   // ── SPLASH — Employee / Visitor gate ──
@@ -2501,58 +2602,99 @@
     // strings with no punctuation. Lisa's Greeting topic splits on this
     // same character to recover both values — see the backend spec.
     entryToken = `__visitor__:${email}|${code}`;
+
+    // Already connected (a previous attempt failed): resend on the same
+    // conversation rather than starting a second Web Chat instance.
+    if (webchatStore && entryRole === 'visitor') {
+      startVisitorVerification();
+      postEntryToken(webchatStore.dispatch, false);
+      return;
+    }
+
     entryRole = 'visitor';
     renderSidebarTopics('visitor');
     startAppAfterSplash();
   }
 
-  function startAppAfterSplash() {
-    // ── TEMP DEBUG SWITCH ──
-    // Set to true to bypass visitor-verification gating entirely and see
-    // the raw conversation unfold in chat, unobstructed by the splash
-    // screen's wait/timeout logic — for isolating whether VISITORVERIFIEDOK is
-    // actually being sent and received correctly. Flip back to false (or
-    // delete this block) to restore real gating.
-    const DISABLE_VISITOR_GATING_TEMP = true;
+  // ── VISITOR VERIFICATION WAIT ──
+  // The splash stays up until the visitor agent confirms the visit. Gating is
+  // a user-experience step, not the security control: the visitor agent
+  // itself refuses to help until the visit is verified.
+  //  - Marker (VISITORVERIFIEDOK, matched loosely) -> verified.
+  //  - A reply without the marker -> wait briefly for a marker in a follow-up
+  //    message; then, if the reply reads as a failure, show it on the form so
+  //    the visitor can correct their details; otherwise treat the greeting as
+  //    success (the agent sometimes forgets the marker).
+  //  - No reply at all within the timeout -> show an error and allow retry.
+  function startVisitorVerification() {
+    visitorVerified = false;
+    lastVisitorReply = '';
+    if (visitorGraceTimer) { clearTimeout(visitorGraceTimer); visitorGraceTimer = null; }
+    if (visitorVerificationTimer) clearTimeout(visitorVerificationTimer);
+    setVisitorVerifying(true);
+    const err = document.getElementById('visitorFormError');
+    err.textContent = '';
+    err.classList.remove('visible');
+    visitorVerificationTimer = setTimeout(() => {
+      if (visitorVerified) return;
+      if (lastVisitorReply) { decideOnVisitorReply(); return; }
+      showVisitorError("We couldn't verify those details just now. Please check your email and visit code and try again.");
+    }, VISITOR_VERIFY_TIMEOUT_MS);
+  }
 
-    const isVisitorPath = entryRole === 'visitor' && !DISABLE_VISITOR_GATING_TEMP;
+  function onVisitorVerified() {
+    if (visitorVerified) return;
+    visitorVerified = true;
+    if (visitorVerificationTimer) { clearTimeout(visitorVerificationTimer); visitorVerificationTimer = null; }
+    if (visitorGraceTimer) { clearTimeout(visitorGraceTimer); visitorGraceTimer = null; }
+    setVisitorVerifying(false);
+    document.getElementById('splashOverlay').classList.add('hidden');
+  }
 
-    if (!isVisitorPath) {
-      // Employee path — unchanged, immediate dismissal exactly as before.
-      document.getElementById('splashOverlay').classList.add('hidden');
+  function onVisitorReplyWithoutMarker(text) {
+    lastVisitorReply = text;
+    if (visitorGraceTimer) clearTimeout(visitorGraceTimer);
+    visitorGraceTimer = setTimeout(decideOnVisitorReply, VISITOR_MARKER_GRACE_MS);
+  }
+
+  function decideOnVisitorReply() {
+    visitorGraceTimer = null;
+    if (visitorVerified || !lastVisitorReply) return;
+    if (VISITOR_FAILURE_RE.test(lastVisitorReply)) {
+      showVisitorError(cleanMarkdownAndEmoji(lastVisitorReply).slice(0, 240));
     } else {
-      // Visitor path — the splash stays up. It only actually dismisses once
-      // the bot's VISITORVERIFIEDOK marker arrives (see the
-      // DIRECT_LINE/INCOMING_ACTIVITY handler in createStore()). Fail-closed:
-      // an invalid code, a timeout, or any outcome besides a confirmed
-      // VISITORVERIFIEDOK leaves the visitor here rather than letting them
-      // through by default.
-      visitorVerified = false;
-      setVisitorVerifying(true);
-      document.getElementById('visitorFormError').classList.remove('visible');
+      onVisitorVerified();
+    }
+  }
+
+  function showVisitorError(message) {
+    if (visitorVerificationTimer) { clearTimeout(visitorVerificationTimer); visitorVerificationTimer = null; }
+    setVisitorVerifying(false);
+    const err = document.getElementById('visitorFormError');
+    err.textContent = message;
+    err.classList.add('visible');
+  }
+
+  function startAppAfterSplash() {
+    const isVisitorPath = entryRole === 'visitor' && VISITOR_GATING;
+
+    if (isVisitorPath) {
+      startVisitorVerification();
+    } else {
+      document.getElementById('splashOverlay').classList.add('hidden');
     }
 
-    const errorTimer = setTimeout(() => {
+    // Connection watchdog: cleared by setConnected() when Direct Line is
+    // actually online, not when Web Chat has merely rendered.
+    connectErrorTimer = setTimeout(() => {
       const loading = document.getElementById('loadingScreen');
-      if (loading && loading.style.display !== 'none') showError();
+      if (loading && loading.style.display !== 'none') {
+        document.getElementById('splashOverlay').classList.add('hidden');
+        showError();
+      }
     }, 15000);
 
-    // Separate, shorter timeout specific to visitor verification — fails
-    // closed onto the splash form itself rather than the generic full-page
-    // error, since an invalid code is an expected, recoverable outcome, not
-    // a connection failure.
-    if (isVisitorPath) {
-      visitorVerificationTimer = setTimeout(() => {
-        if (!visitorVerified) {
-          setVisitorVerifying(false);
-          const err = document.getElementById('visitorFormError');
-          err.textContent = "We couldn't verify those details — please double-check the code and email and try again.";
-          err.classList.add('visible');
-        }
-      }, 20000);
-    }
-
-    initWebChat().then(() => clearTimeout(errorTimer));
+    initWebChat();
   }
 </script>
 
