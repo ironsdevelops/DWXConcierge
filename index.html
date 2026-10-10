@@ -430,7 +430,7 @@
        stable, non-hashed Web Chat class name — the CSS-in-JS hashed
        classes on the same element aren't safe to target directly. */
     #webchat .webchat__basic-transcript__scrollable {
-      padding-bottom: 40px !important;
+      padding-bottom: 60px !important;
     }
 
     /* Suppress Web Chat's own built-in typing indicator — the custom
@@ -464,43 +464,88 @@
       image-rendering: auto;
     }
 
+    /* Lisa's "typing" bubble: her avatar and a white bubble the same shape as
+       her replies, lined up with her messages, just above the composer. The
+       caption appears on long waits (see showPersistentDots). */
     #persistent-chat-dots {
       position: fixed;
       left: 0;
       top: 0;
-      width: 64px;
-      height: 28px;
       display: none;
       align-items: center;
-      justify-content: center;
-      gap: 6px;
-      padding: 0 10px;
-      background: #FFFFFF;
-      border: 1px solid rgba(10,30,53,0.10);
-      border-radius: 16px;
-      box-shadow: 0 2px 8px rgba(10,30,53,0.12);
+      gap: 10px;
       z-index: 1000;
       pointer-events: none;
     }
 
     #persistent-chat-dots.visible {
       display: flex;
+      animation: dotsIn 0.2s ease-out;
     }
 
-    #persistent-chat-dots span {
+    @keyframes dotsIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #persistent-chat-dots .dots-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    #persistent-chat-dots .dots-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #persistent-chat-dots .dots-bubble {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      height: 38px;
+      padding: 0 15px;
+      background: #FFFFFF;
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(10,30,53,0.06);
+    }
+
+    #persistent-chat-dots .dots-bubble span {
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--turquoise);
-      animation: persistentDotBounce 1.2s ease-in-out infinite;
+      background: #B5BFD0;
+      animation: persistentDotWave 1.3s ease-in-out infinite;
     }
 
-    #persistent-chat-dots span:nth-child(2) { animation-delay: 0.15s; }
-    #persistent-chat-dots span:nth-child(3) { animation-delay: 0.30s; }
+    #persistent-chat-dots .dots-bubble span:nth-child(2) { animation-delay: 0.16s; }
+    #persistent-chat-dots .dots-bubble span:nth-child(3) { animation-delay: 0.32s; }
 
-    @keyframes persistentDotBounce {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
-      30% { transform: translateY(-3px); opacity: 1; }
+    @keyframes persistentDotWave {
+      0%, 60%, 100% { transform: translateY(0); background: #B5BFD0; }
+      30% { transform: translateY(-3px); background: #1A6EBD; }
+    }
+
+    #persistent-chat-dots .dots-caption {
+      font-size: 12px;
+      color: #6B7A99;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #persistent-chat-dots .dots-caption.show { opacity: 1; }
+
+    body.voice-active #persistent-chat-dots { display: none !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      #persistent-chat-dots.visible { animation: none; }
+      #persistent-chat-dots .dots-bubble span { animation: none; background: #6B7A99; }
     }
 
     /* ── LOADING ── */
@@ -1367,8 +1412,10 @@
 
     <!-- Persistent typing indicator. Web Chat's native typing element is transient,
          so this indicator is owned by the page and positioned against the send box. -->
-    <div id="persistent-chat-dots" aria-hidden="true">
-      <span></span><span></span><span></span>
+    <div id="persistent-chat-dots" role="status" aria-live="polite" aria-label="Lisa is typing">
+      <span class="dots-avatar"><img src="avatar.png" alt=""></span>
+      <span class="dots-bubble" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span class="dots-caption" id="dotsCaption"></span>
     </div>
 
     <!-- VOICE MODE OVERLAY -->
@@ -1996,14 +2043,65 @@
     // attempts at that were fragile in different ways (wrong element
     // measured, or correctly avoiding the message but landing on the
     // composer instead when the gap was genuinely too tight).
-    dots.style.left = `${Math.round(inputRect.left + 10)}px`;
-    dots.style.top = `${Math.round(inputRect.top - 37)}px`;
+    // Line up with Lisa's avatar column (the last bot avatar on screen),
+    // falling back to the composer's left edge before any reply exists.
+    const avatars = document.querySelectorAll('#webchat .webchat__imageAvatar, #webchat .webchat__initialsAvatar');
+    const lastAvatar = avatars.length ? avatars[avatars.length - 1].getBoundingClientRect() : null;
+    const left = lastAvatar && lastAvatar.width ? lastAvatar.left : inputRect.left + 12;
+    const size = lastAvatar && lastAvatar.width ? Math.round(lastAvatar.width) : 40;
+    const av = dots.querySelector('.dots-avatar');
+    if (av) { av.style.width = `${size}px`; av.style.height = `${size}px`; }
+    dots.style.left = `${Math.round(left)}px`;
+    dots.style.top = `${Math.round(inputRect.top - Math.max(size, 38) - 22)}px`;
+  }
+
+  // Long waits: a caption after a few seconds, a second one later, and a
+  // time limit so a failed turn never leaves the dots running for ever.
+  const DOTS_CAPTIONS = [
+    { after: 8000, text: 'Lisa is thinking…' },
+    { after: 20000, text: 'Still working on it…' },
+  ];
+  const DOTS_TIMEOUT_MS = 90000;
+  let dotsWaitTimers = [];
+
+  function clearDotsWait() {
+    dotsWaitTimers.forEach(clearTimeout);
+    dotsWaitTimers = [];
+    const cap = document.getElementById('dotsCaption');
+    if (cap) { cap.classList.remove('show'); cap.textContent = ''; }
+  }
+
+  function startDotsWait() {
+    clearDotsWait();
+    const cap = document.getElementById('dotsCaption');
+    DOTS_CAPTIONS.forEach(({ after, text }) => {
+      dotsWaitTimers.push(setTimeout(() => {
+        if (!cap) return;
+        cap.textContent = text;
+        cap.classList.add('show');
+      }, after));
+    });
+    dotsWaitTimers.push(setTimeout(() => {
+      hidePersistentDots();
+      if (webchatStore) {
+        webchatStore.dispatch({
+          type: 'DIRECT_LINE/INCOMING_ACTIVITY',
+          payload: { activity: {
+            type: 'message', id: `local-timeout-${Date.now()}`, timestamp: new Date().toISOString(),
+            from: { id: 'lisa', name: 'Lisa', role: 'bot' },
+            text: "Sorry, that's taking longer than usual. Please try again.",
+            channelData: { synthetic: true },
+          } },
+        });
+      }
+    }, DOTS_TIMEOUT_MS));
   }
 
   function showPersistentDots() {
     const dots = ensurePersistentDots();
     if (!dots) return;
 
+    if (!dots.classList.contains('visible')) startDotsWait();
     dots.classList.add('visible');
     positionPersistentDots();
 
@@ -2031,6 +2129,7 @@
     if (!dots) return;
 
     dots.classList.remove('visible');
+    clearDotsWait();
     if (persistentDotsPositionTimer) {
       clearInterval(persistentDotsPositionTimer);
       persistentDotsPositionTimer = null;
@@ -2168,6 +2267,13 @@
             showPersistentDots();
           }
 
+          // A card with no text (for example the sign-in card) renders at
+          // once and has no markdown to watch, so hide the dots straight away.
+          if (activity && activity.type === 'message' && activity.from && activity.from.role === 'bot' &&
+              !activity.text && Array.isArray(activity.attachments) && activity.attachments.length) {
+            hidePersistentDots();
+          }
+
           // A bot message can arrive before Web Chat has finished rendering/
           // streaming the response. Do not hide the dots immediately.
           // Instead, watch the rendered markdown until it has been stable briefly.
@@ -2208,6 +2314,13 @@
             // Voice mode's VoiceController is the sole speech engine.
 
           }
+        }
+
+        // Show the dots the moment the user's message is sent, rather than
+        // waiting for the bot's first typing signal.
+        if (action.type === 'DIRECT_LINE/POST_ACTIVITY' && action.payload && action.payload.activity &&
+            action.payload.activity.type === 'message') {
+          showPersistentDots();
         }
 
         if (action.type === 'DIRECT_LINE/CONNECT_FULFILLED') {
@@ -2358,7 +2471,16 @@
               hasVerifiedMarker(activity.text) &&
               !stripVerifiedMarker(activity.text);
 
-            if (isEntryToken || isVerifiedMarker) {
+            // The 6-digit code the sign-in card sends back. Lisa ignores it;
+            // hide it so the login step looks clean.
+            const isSignInCode =
+              activity &&
+              activity.from &&
+              activity.from.role === 'user' &&
+              typeof activity.text === 'string' &&
+              /^\s*\d{4,8}\s*$/.test(activity.text);
+
+            if (isEntryToken || isVerifiedMarker || isSignInCode) {
               return () => null;
             }
             return next(card);
