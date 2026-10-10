@@ -2155,7 +2155,7 @@
     { when: /\bdigest\b|my day|looking like/i, captions: ['Gathering your day…', 'Checking meetings, desk and lunch…'] },
     { when: /ticket|update on|progress/i, captions: ['Checking the ticket…', 'Still checking…'] },
     { when: /broken|not working|packed up|leak|fault|too (hot|cold|warm)|boiling|freezing|stuck|report/i, captions: ['Checking the room readings…', 'Raising it with facilities…'] },
-    { when: /help with a meeting room|screen|display|share|hdmi|laptop|blinds|lights|cooler|warmer|brighter|dimmer/i, captions: ['Checking with Marge…', 'Still checking the room…'] },
+    { when: /technology in|help with a meeting room|screen|display|share|hdmi|laptop|blinds|lights|cooler|warmer|brighter|dimmer/i, captions: ['Checking with Marge…', 'Still checking the room…'] },
     { when: /\bdesks?\b|hot ?desk/i, captions: ['Finding desks for you…', 'Checking which are free…'] },
     { when: /\b(meeting|room|book|schedule|invite)\b/i, captions: ["Checking everyone's availability…", 'Finding the best room…'] },
     { when: /visit(or|ing)|guest/i, captions: ['Checking your visitors…', 'Still checking…'] },
@@ -2761,20 +2761,28 @@
   // label: desktop sidebar. chip: shorter text for the mobile strip.
   // text: what is sent to Lisa, worded to route the way her instructions
   // expect (digest, Ned for desks/meetings/faults, Marge for room tech).
+  // Room help is about the technology in the room, not booking one. Name the
+  // room when the page was opened from a room's QR code.
+  function roomTechHelpText() {
+    return locationName
+      ? `I need help with the technology in ${/^the\s/i.test(locationName) ? '' : 'the '}${locationName}, such as the screen, sharing or the room controls`
+      : "I need help with the technology in the meeting room I'm in, such as the screen, sharing or the room controls";
+  }
+
   const SIDEBAR_TOPICS_EMPLOYEE = [
     { label: 'Daily Digest',              chip: 'Daily Digest',   text: 'Can I see my daily digest?' },
     { label: 'Book a desk',               chip: 'Book a desk',    text: 'I need to book a desk' },
     { label: 'Book a meeting or room',    chip: 'Book a meeting', text: 'I need to book a meeting' },
     { label: "Who's visiting today?",     chip: 'Visitors today', text: 'Who is visiting today?' },
     { label: "What's for lunch?",         chip: 'Lunch',          text: "What's for lunch today?" },
-    { label: 'Help with a meeting room',  chip: 'Room help',      text: 'I need help with a meeting room' },
+    { label: 'Help with room technology', chip: 'Room tech help', text: roomTechHelpText },
     { label: 'Report a building issue',   chip: 'Report an issue', text: 'I want to report a problem in the building' },
   ];
 
   const SIDEBAR_TOPICS_VISITOR = [
     { label: 'Find my host',              chip: 'Find my host',   text: 'Where can I find my host?' },
     { label: 'Check my visit details',    chip: 'My visit',       text: 'What is my visit for?' },
-    { label: 'Help with a meeting room',  chip: 'Room help',      text: 'I need help with a meeting room' },
+    { label: 'Help with room technology', chip: 'Room tech help', text: roomTechHelpText },
     { label: "Something isn't working",   chip: 'Report an issue', text: 'Something is not working' },
   ];
 
@@ -2800,7 +2808,10 @@
 
     container.querySelectorAll('.sidebar-topic').forEach(btn => {
       const idx = parseInt(btn.getAttribute('data-topic-index'), 10);
-      btn.addEventListener('click', () => sendQuickMessage(topics[idx].text));
+      btn.addEventListener('click', () => {
+        const t = topics[idx].text;
+        sendQuickMessage(typeof t === 'function' ? t() : t);
+      });
     });
 
     // Same topics as chips on mobile/tablet. Built with DOM calls rather than
@@ -2812,7 +2823,7 @@
         chip.type = 'button';
         chip.className = 'quick-chip';
         chip.textContent = t.chip || t.label;
-        chip.addEventListener('click', () => sendQuickMessage(t.text));
+        chip.addEventListener('click', () => sendQuickMessage(typeof t.text === 'function' ? t.text() : t.text));
         return chip;
       }));
       strip.classList.add('visible');
