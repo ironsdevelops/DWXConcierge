@@ -1256,6 +1256,36 @@
       cursor: not-allowed;
     }
 
+    /* Employee sign-in, shown on the splash in place of the choices */
+    .splash-signin-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.8);
+      padding: 6px 0;
+    }
+    .splash-signin-spinner {
+      width: 18px; height: 18px; flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.18);
+      border-top-color: var(--turquoise);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+    .splash-signin-text {
+      font-size: 13px;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.7);
+      margin: 0;
+    }
+    .splash-signin-step { display: none; flex-direction: column; gap: 12px; }
+    .splash-signin-step.visible { display: flex; }
+    .splash-continue-btn.secondary {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    .splash-continue-btn.secondary:hover { background: rgba(255,255,255,0.06); }
+
     @media (min-width: 600px) {
       .splash-title { font-size: 26px; }
     }
@@ -1317,6 +1347,25 @@
       </div>
       <button class="splash-continue-btn" id="visitorContinueBtn" onclick="submitVisitorForm()">Continue</button>
       <div class="splash-field-error" id="visitorFormError" style="text-align:center;"></div>
+    </div>
+
+    <!-- Employee sign-in. Lisa's sign-in card is handled here instead of in
+         the chat, so the conversation starts cleanly at her greeting. -->
+    <div class="splash-visitor-form" id="splashSignIn" aria-live="polite">
+      <div class="splash-signin-status" id="signInStatus">
+        <span class="splash-signin-spinner"></span>
+        <span id="signInStatusText">Signing you in…</span>
+      </div>
+      <div class="splash-signin-step" id="signInStep">
+        <p class="splash-signin-text">Sign in with your work account. A new tab will open. When it shows a code, come back here and enter it.</p>
+        <button class="splash-continue-btn" id="signInOpenBtn" onclick="openSignIn()">Sign in with Microsoft</button>
+        <div>
+          <label class="splash-field-label" for="signInCode">Code from the sign-in tab</label>
+          <input class="splash-input" type="text" id="signInCode" inputmode="numeric" autocomplete="one-time-code" placeholder="e.g. 123456" onkeydown="if(event.key==='Enter') submitSignInCode()" />
+        </div>
+        <button class="splash-continue-btn secondary" id="signInCodeBtn" onclick="submitSignInCode()">Continue</button>
+        <div class="splash-field-error" id="signInError" style="text-align:center;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2061,6 +2110,40 @@
     { after: 8000, text: 'Lisa is thinking…' },
     { after: 20000, text: 'Still working on it…' },
   ];
+
+  // Wording for the wait, picked from what the user just sent and, for a
+  // short reply such as "1" or "yes", from what Lisa last asked. First
+  // match wins; anything unmatched uses DOTS_CAPTIONS above.
+  const DOTS_TOPICS = [
+    { pick: true, when: /digest/i, captions: ['Gathering your day…', 'Checking meetings, desk and lunch…'] },
+    { pick: true, when: /\bdesk/i, captions: ['Booking your desk…', 'Adding it to your calendar…'] },
+    { pick: true, when: /option|room/i, captions: ['Booking your room…', 'Sending the invitations…'] },
+    { when: /\bdigest\b|my day|looking like/i, captions: ['Gathering your day…', 'Checking meetings, desk and lunch…'] },
+    { when: /ticket|update on|progress/i, captions: ['Checking the ticket…', 'Still checking…'] },
+    { when: /broken|not working|packed up|leak|fault|too (hot|cold|warm)|boiling|freezing|stuck|report/i, captions: ['Checking the room readings…', 'Raising it with facilities…'] },
+    { when: /help with a meeting room|screen|display|share|hdmi|laptop|blinds|lights|cooler|warmer|brighter|dimmer/i, captions: ['Checking with Marge…', 'Still checking the room…'] },
+    { when: /\bdesks?\b|hot ?desk/i, captions: ['Finding desks for you…', 'Checking which are free…'] },
+    { when: /\b(meeting|room|book|schedule|invite)\b/i, captions: ["Checking everyone's availability…", 'Finding the best room…'] },
+    { when: /visit(or|ing)|guest/i, captions: ['Checking your visitors…', 'Still checking…'] },
+    { when: /lunch|menu|food/i, captions: ["Checking today's menu…", 'Still checking…'] },
+  ];
+  const DOTS_PICK_RE = /^\s*(option\s*)?\d+\.?\s*$|^\s*(yes|yep|yeah|ok|okay|sure|go ahead|book it|that one|please do)\b/i;
+  let dotsCaptionsForTurn = null;
+  let lastBotTextForDots = '';
+
+  function chooseDotsCaptions(userText) {
+    const text = String(userText || '');
+    const isPick = DOTS_PICK_RE.test(text);
+    for (const t of DOTS_TOPICS) {
+      if (t.pick) {
+        // Judge a short reply by the end of Lisa's last message, where her question is.
+        if (isPick && t.when.test(lastBotTextForDots.slice(-220))) return t.captions;
+      } else if (!isPick && t.when.test(text)) {
+        return t.captions;
+      }
+    }
+    return null;
+  }
   const DOTS_TIMEOUT_MS = 90000;
   let dotsWaitTimers = [];
 
@@ -2074,7 +2157,11 @@
   function startDotsWait() {
     clearDotsWait();
     const cap = document.getElementById('dotsCaption');
-    DOTS_CAPTIONS.forEach(({ after, text }) => {
+    // Topic wording comes in sooner (5 s) because it says something useful.
+    const plan = dotsCaptionsForTurn
+      ? [{ after: 5000, text: dotsCaptionsForTurn[0] }, { after: 15000, text: dotsCaptionsForTurn[1] }]
+      : DOTS_CAPTIONS;
+    plan.forEach(({ after, text }) => {
       dotsWaitTimers.push(setTimeout(() => {
         if (!cap) return;
         cap.textContent = text;
@@ -2130,6 +2217,7 @@
 
     dots.classList.remove('visible');
     clearDotsWait();
+    dotsCaptionsForTurn = null;
     if (persistentDotsPositionTimer) {
       clearInterval(persistentDotsPositionTimer);
       persistentDotsPositionTimer = null;
@@ -2261,6 +2349,12 @@
             onVisitorReplyWithoutMarker(activity.text);
           }
 
+          // Employee sign-in on the splash: keep the sign-in card out of the chat.
+          if (employeeSignInPending && activity && activity.type === 'message' && activity.from &&
+              activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic)) {
+            if (handleSignInActivity(activity) && activity.id) hiddenActivityIds.add(activity.id);
+          }
+
           // Show our persistent indicator as soon as Direct Line tells us the
           // bot is typing. Do not wait for Web Chat's own transient DOM node.
           if (activity && activity.type === 'typing') {
@@ -2303,6 +2397,7 @@
             // can repeat it instead of leaving the user facing a silent
             // orb with no idea what Lisa last asked.
             lastBotSpokenText = spoken;
+            if (!(activity.channelData && activity.channelData.synthetic)) lastBotTextForDots = activity.text;
             lastBotImageUrl = extractImageUrl(activity.text);
 
             if (voiceModeActive) {
@@ -2320,6 +2415,14 @@
         // waiting for the bot's first typing signal.
         if (action.type === 'DIRECT_LINE/POST_ACTIVITY' && action.payload && action.payload.activity &&
             action.payload.activity.type === 'message') {
+          const sentText = action.payload.activity.text;
+          if (!/^__/.test(sentText || '')) {
+            dotsCaptionsForTurn = chooseDotsCaptions(sentText);
+            // Already waiting (for example a quick second message): restart
+            // the captions with the new wording.
+            const d = ensurePersistentDots();
+            if (d && d.classList.contains('visible')) startDotsWait();
+          }
           showPersistentDots();
         }
 
@@ -2335,7 +2438,7 @@
           // over Direct Line, but it renders as a normal Lisa bubble.
           // Tagged channelData.synthetic so the dots-hide logic above
           // knows to ignore it rather than treating it as the real reply.
-          if (entryRole && ENTRY_WAITING_MESSAGES[entryRole]) {
+          if (entryRole && ENTRY_WAITING_MESSAGES[entryRole] && !(entryRole === 'employee' && employeeSignInPending)) {
             dispatch({
               type: 'DIRECT_LINE/INCOMING_ACTIVITY',
               payload: {
@@ -2480,7 +2583,15 @@
               typeof activity.text === 'string' &&
               /^\s*\d{4,8}\s*$/.test(activity.text);
 
-            if (isEntryToken || isVerifiedMarker || isSignInCode) {
+            // Sign-in cards that arrive while the splash is handling sign-in.
+            // Judged on content too, as Web Chat can render a card before the
+            // store middleware has recorded its id.
+            const isSplashSignInCard =
+              activity && activity.from && activity.from.role === 'bot' &&
+              ((activity.id && hiddenActivityIds.has(activity.id)) ||
+               (employeeSignInPending && !!signInLinkFromCard(activity)));
+
+            if (isEntryToken || isVerifiedMarker || isSignInCode || isSplashSignInCard) {
               return () => null;
             }
             return next(card);
@@ -2660,10 +2771,101 @@
   // before any conversation state exists, rather than trying to gate
   // capabilities generatively after the fact.
 
+  // ── EMPLOYEE SIGN-IN ON THE SPLASH ──
+  // The splash stays up until Lisa's first reply (her greeting). If she sends
+  // a sign-in card first, it is kept out of the chat and its sign-in link is
+  // offered on the splash, with a box for the code. ?gating=off skips this.
+  const EMPLOYEE_SPLASH_SIGNIN = VISITOR_GATING;
+  const SIGNIN_NO_REPLY_MS = 45000; // show the chat anyway if nothing arrives
+  let employeeSignInPending = false;
+  let employeeSignInTimer = null;
+  let signInUrl = '';
+  let signInCodeSent = false;
+  const hiddenActivityIds = new Set();
+
+  function signInLinkFromCard(activity) {
+    const atts = Array.isArray(activity.attachments) ? activity.attachments : [];
+    for (const a of atts) {
+      if (!a || !/oauth|signin/i.test(String(a.contentType || ''))) continue;
+      const buttons = (a.content && a.content.buttons) || [];
+      const b = buttons.find(x => x && typeof x.value === 'string' && /^https?:/i.test(x.value));
+      return b ? b.value : '';
+    }
+    return null; // not a sign-in card
+  }
+
+  function finishEmployeeSignIn() {
+    employeeSignInPending = false;
+    if (employeeSignInTimer) { clearTimeout(employeeSignInTimer); employeeSignInTimer = null; }
+    document.getElementById('splashOverlay').classList.add('hidden');
+  }
+
+  // Called for every incoming bot message while sign-in is pending.
+  // Returns true if the activity should be kept out of the chat.
+  function handleSignInActivity(activity) {
+    const link = signInLinkFromCard(activity);
+    if (link !== null) {
+      if (!link) { finishEmployeeSignIn(); return false; } // unknown card: show it in the chat
+      signInUrl = link;
+      if (employeeSignInTimer) { clearTimeout(employeeSignInTimer); employeeSignInTimer = null; }
+      document.getElementById('signInStatus').style.display = 'none';
+      document.getElementById('signInStep').classList.add('visible');
+      const err = document.getElementById('signInError');
+      if (signInCodeSent) {
+        // A second card after a code means the code didn't work.
+        err.textContent = "That code didn't work. Please sign in again and enter the new code.";
+        err.classList.add('visible');
+      }
+      signInCodeSent = false;
+      setSignInBusy(false);
+      return true;
+    }
+    if (activity.text && (signInCodeSent || !signInUrl)) finishEmployeeSignIn();
+    return false;
+  }
+
+  function setSignInBusy(busy) {
+    const btn = document.getElementById('signInCodeBtn');
+    const input = document.getElementById('signInCode');
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Signing in…' : 'Continue';
+    input.disabled = busy;
+  }
+
+  function openSignIn() {
+    if (signInUrl) window.open(signInUrl, '_blank', 'noopener');
+    setTimeout(() => document.getElementById('signInCode').focus(), 300);
+  }
+
+  function submitSignInCode() {
+    const input = document.getElementById('signInCode');
+    const code = input.value.replace(/\s+/g, '');
+    const err = document.getElementById('signInError');
+    if (!/^\d{4,8}$/.test(code)) {
+      err.textContent = 'Enter the code shown in the sign-in tab.';
+      err.classList.add('visible');
+      return;
+    }
+    err.classList.remove('visible');
+    signInCodeSent = true;
+    setSignInBusy(true);
+    webchatStore.dispatch({
+      type: 'DIRECT_LINE/POST_ACTIVITY',
+      meta: { method: 'keyboard' },
+      payload: { activity: { type: 'message', text: code, textFormat: 'plain' } },
+    });
+  }
+
   function selectEmployee() {
     entryToken = '__employee__';
     entryRole = 'employee';
     renderSidebarTopics('employee');
+    if (EMPLOYEE_SPLASH_SIGNIN) {
+      employeeSignInPending = true;
+      document.getElementById('splashChoices').classList.add('visitor-active');
+      document.getElementById('splashSignIn').classList.add('visible');
+      employeeSignInTimer = setTimeout(() => { if (employeeSignInPending) finishEmployeeSignIn(); }, SIGNIN_NO_REPLY_MS);
+    }
     startAppAfterSplash();
   }
 
@@ -2802,7 +3004,7 @@
 
     if (isVisitorPath) {
       startVisitorVerification();
-    } else {
+    } else if (!employeeSignInPending) {
       document.getElementById('splashOverlay').classList.add('hidden');
     }
 
