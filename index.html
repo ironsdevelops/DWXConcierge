@@ -1256,6 +1256,39 @@
       cursor: not-allowed;
     }
 
+    /* Desktop sidebar on shorter screens: tighten the spacing so the footer
+       stays in view, and let the column scroll if it still doesn't fit. */
+    @media (min-width: 900px) {
+      .sidebar-content { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+      .sidebar-signed-in {
+        font-size: 11px;
+        color: rgba(255,255,255,0.4);
+        margin-top: 3px;
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sidebar-signed-in:empty { display: none; }
+    }
+    @media (min-width: 900px) and (max-height: 920px) {
+      .sidebar { padding: 28px 32px 22px; }
+      .sidebar-brand { margin-bottom: 26px; }
+      .sidebar-avatar-row { margin-bottom: 14px !important; }
+      .sidebar-avatar { width: 60px !important; height: 60px !important; }
+      .sidebar-room-name { font-size: 22px; margin-bottom: 10px; }
+      .sidebar-divider { margin-bottom: 18px; }
+      .sidebar-hint { line-height: 1.5; }
+      .sidebar-topics { gap: 6px; }
+      .sidebar-topic { padding: 8px 14px; }
+      .sidebar-footer { margin-top: 18px; padding-top: 14px; gap: 8px; }
+    }
+    @media (min-width: 900px) and (max-height: 760px) {
+      .sidebar-brand { margin-bottom: 18px; }
+      .sidebar-hint { display: none; }
+      .sidebar-divider { margin-bottom: 14px; }
+    }
+
     /* Employee sign-in, shown on the splash in place of the choices */
     .splash-signin-status {
       display: flex;
@@ -1403,8 +1436,8 @@
           <div class="sidebar-logo-word-sub">LABORATORIES</div>
         </div>
       </div>
-      <div style="display:flex; align-items:center; gap:14px; margin-bottom:20px;">
-        <img src="avatar.png" alt="Lisa" style="width:72px; height:72px; border-radius:50%; border:2px solid rgba(0,212,232,0.4); background:#071321; padding:3px; object-fit:cover; display:block;" />
+      <div class="sidebar-avatar-row" style="display:flex; align-items:center; gap:14px; margin-bottom:20px;">
+        <img class="sidebar-avatar" src="avatar.png" alt="Lisa" style="width:72px; height:72px; border-radius:50%; border:2px solid rgba(0,212,232,0.4); background:#071321; padding:3px; object-fit:cover; display:block;" />
         <div>
           <div class="sidebar-room-label" style="margin-bottom:2px;">Lisa</div>
           <div style="font-size:13px; color:rgba(255,255,255,0.55); line-height:1.3;">Location Intelligence &amp;<br>Scheduling Assistant</div>
@@ -1412,6 +1445,7 @@
             <div class="status-dot-sm" id="statusDotDesktop"></div>
             <span id="statusTextDesktop">Connecting...</span>
           </div>
+          <div class="sidebar-signed-in" id="signedInDesktop"></div>
         </div>
       </div>
       <div class="sidebar-room-name">Intelligent Workplace Concierge</div>
@@ -2096,7 +2130,7 @@
     // falling back to the composer's left edge before any reply exists.
     const avatars = document.querySelectorAll('#webchat .webchat__imageAvatar, #webchat .webchat__initialsAvatar');
     const lastAvatar = avatars.length ? avatars[avatars.length - 1].getBoundingClientRect() : null;
-    const left = lastAvatar && lastAvatar.width ? lastAvatar.left : inputRect.left + 12;
+    const left = lastAvatar && lastAvatar.width ? lastAvatar.left : inputRect.left;
     const size = lastAvatar && lastAvatar.width ? Math.round(lastAvatar.width) : 40;
     const av = dots.querySelector('.dots-avatar');
     if (av) { av.style.width = `${size}px`; av.style.height = `${size}px`; }
@@ -2349,10 +2383,26 @@
             onVisitorReplyWithoutMarker(activity.text);
           }
 
+          // Employee: move "You are signed in as: …" from the first reply to the sidebar.
+          if (entryRole === 'employee' && activity && activity.type === 'message' && activity.from &&
+              activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic)) {
+            const rest = takeSignedInLine(activity.text);
+            if (rest !== null) {
+              if (!rest) {
+                if (employeeSignInPending) { finishEmployeeSignIn(); startGreetingHold(next); }
+                return; // the line was the whole message: nothing to show
+              }
+              activity = { ...activity, text: rest, speak: undefined };
+              action = { ...action, payload: { ...action.payload, activity } };
+            }
+          }
+
           // Employee sign-in on the splash: keep the sign-in card out of the chat.
           if (employeeSignInPending && activity && activity.type === 'message' && activity.from &&
               activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic)) {
             if (handleSignInActivity(activity) && activity.id) hiddenActivityIds.add(activity.id);
+            // This reply closed the splash: show Lisa typing, then the reply.
+            if (!employeeSignInPending) startGreetingHold(next);
           }
 
           // Show our persistent indicator as soon as Direct Line tells us the
@@ -2468,6 +2518,10 @@
           setTimeout(() => postEntryToken(dispatch, true), 500);
         }
 
+        if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY' && Date.now() < incomingHoldUntil) {
+          incomingHeld.push(action);
+          return;
+        }
         return next(action);
       }
     );
@@ -2792,6 +2846,41 @@
       return b ? b.value : '';
     }
     return null; // not a sign-in card
+  }
+
+  // Lisa's first reply starts "You are signed in as: <email>". The email is
+  // shown in the sidebar instead, and the line removed from the chat. Only
+  // the first reply is changed, so a later "who am I signed in as?" answer
+  // is left alone.
+  let signedInLineHandled = false;
+  const SIGNED_IN_LINE_RE = /^\s*\**\s*You are signed in as:?\s*\**\s*(?:\[([^\]]+)\]\([^)]*\)|<?([^\s<>()\[\]]+@[^\s<>()\[\]]+?)>?)\s*[.,]?\s*(?:\r?\n|$)/i;
+
+  function takeSignedInLine(text) {
+    if (signedInLineHandled || typeof text !== 'string') return null;
+    const m = text.match(SIGNED_IN_LINE_RE);
+    if (!m) return null;
+    signedInLineHandled = true;
+    const email = (m[1] || m[2] || '').replace(/^mailto:/i, '');
+    const el = document.getElementById('signedInDesktop');
+    if (el && email) { el.textContent = `Signed in as ${email}`; el.title = email; }
+    return text.slice(m[0].length).replace(/^\s+/, '');
+  }
+
+  // When the splash closes on Lisa's greeting, the chat shows Lisa "typing"
+  // for a moment before the greeting arrives, rather than it already being
+  // there. Anything else arriving in that moment waits too, in order.
+  const GREETING_DELAY_MS = 1200;
+  let incomingHoldUntil = 0;
+  let incomingHeld = [];
+
+  function startGreetingHold(next) {
+    incomingHoldUntil = Date.now() + GREETING_DELAY_MS;
+    showPersistentDots();
+    setTimeout(() => {
+      const held = incomingHeld.splice(0);
+      incomingHoldUntil = 0;
+      held.forEach(a => next(a));
+    }, GREETING_DELAY_MS);
   }
 
   function finishEmployeeSignIn() {
