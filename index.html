@@ -1055,9 +1055,11 @@
       overflow-y: auto;
     }
 
+    /* Fixed, not absolute: the decorative circles hang off the edges, and as
+       absolute children of the scrolling overlay they added scrollbars. */
     .splash-overlay::before {
       content: '';
-      position: absolute;
+      position: fixed;
       top: -80px; left: -80px;
       width: 320px; height: 320px;
       border-radius: 50%;
@@ -1068,7 +1070,7 @@
 
     .splash-overlay::after {
       content: '';
-      position: absolute;
+      position: fixed;
       bottom: -60px; right: -60px;
       width: 240px; height: 240px;
       border-radius: 50%;
@@ -1322,6 +1324,14 @@
     @media (min-width: 600px) {
       .splash-title { font-size: 26px; }
     }
+    @media (max-height: 760px) {
+      .splash-brand { margin-bottom: 22px; }
+      .splash-logo-mark { height: 56px; width: 56px; }
+      .splash-subtitle { margin-bottom: 20px; }
+    }
+    .splash-signin-help { display: none; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .splash-signin-help.visible { display: flex; }
+    .splash-signin-help p { font-size: 13px; color: rgba(255,255,255,0.7); margin: 0; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -1398,6 +1408,11 @@
         </div>
         <button class="splash-continue-btn secondary" id="signInCodeBtn" onclick="submitSignInCode()">Continue</button>
         <div class="splash-field-error" id="signInError" style="text-align:center;"></div>
+        <div class="splash-signin-help" id="signInHelp">
+          <p>This is taking longer than usual.</p>
+          <button class="splash-continue-btn" onclick="location.reload()">Try again</button>
+          <button class="splash-continue-btn secondary" onclick="finishEmployeeSignIn()">Open the chat anyway</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2389,7 +2404,11 @@
             const rest = takeSignedInLine(activity.text);
             if (rest !== null) {
               if (!rest) {
-                if (employeeSignInPending) { finishEmployeeSignIn(); startGreetingHold(next); }
+                if (employeeSignInPending) {
+                  finishEmployeeSignIn();
+                  if (GREETING_OFF) { dropBotTextUntil = Date.now() + 4000; hidePersistentDots(); }
+                  else startGreetingHold(next);
+                }
                 return; // the line was the whole message: nothing to show
               }
               activity = { ...activity, text: rest, speak: undefined };
@@ -2397,12 +2416,22 @@
             }
           }
 
+          if (Date.now() < dropBotTextUntil && activity && activity.type === 'message' && activity.from &&
+              activity.from.role === 'bot' && activity.text) {
+            hidePersistentDots();
+            return;
+          }
+
           // Employee sign-in on the splash: keep the sign-in card out of the chat.
           if (employeeSignInPending && activity && activity.type === 'message' && activity.from &&
               activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic)) {
             if (handleSignInActivity(activity) && activity.id) hiddenActivityIds.add(activity.id);
-            // This reply closed the splash: show Lisa typing, then the reply.
-            if (!employeeSignInPending) startGreetingHold(next);
+            // This reply closed the splash: show Lisa typing, then the reply,
+            // or with ?greeting=off drop it and anything just after it.
+            if (!employeeSignInPending) {
+              if (GREETING_OFF) { dropBotTextUntil = Date.now() + 4000; hidePersistentDots(); return; }
+              startGreetingHold(next);
+            }
           }
 
           // Show our persistent indicator as soon as Direct Line tells us the
@@ -2881,6 +2910,28 @@
   // for a moment before the greeting arrives, rather than it already being
   // there. Anything else arriving in that moment waits too, in order.
   const GREETING_DELAY_MS = 1200;
+
+  // For recording: ?greeting=off drops Lisa's greeting, so the chat opens
+  // empty. Ctrl+Shift+K (Cmd+Shift+K on a Mac) clears the chat at any time;
+  // the conversation carries on, only the screen is cleared.
+  const GREETING_OFF = params.get('greeting') === 'off';
+  let dropBotTextUntil = 0;
+
+  function clearTranscript() {
+    if (!webchatStore) return;
+    const state = webchatStore.getState();
+    (state.activities || []).forEach(a => {
+      if (a && a.id) webchatStore.dispatch({ type: 'DIRECT_LINE/DELETE_ACTIVITY', payload: { activityID: a.id } });
+    });
+    hidePersistentDots();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+      e.preventDefault();
+      clearTranscript();
+    }
+  });
   let incomingHoldUntil = 0;
   let incomingHeld = [];
 
@@ -2895,6 +2946,7 @@
   }
 
   function finishEmployeeSignIn() {
+    if (typeof clearSignInSlow === 'function') clearSignInSlow();
     employeeSignInPending = false;
     if (employeeSignInTimer) { clearTimeout(employeeSignInTimer); employeeSignInTimer = null; }
     document.getElementById('splashOverlay').classList.add('hidden');
@@ -2917,6 +2969,7 @@
         err.classList.add('visible');
       }
       signInCodeSent = false;
+      clearSignInSlow();
       setSignInBusy(false);
       return true;
     }
@@ -2937,6 +2990,29 @@
     setTimeout(() => document.getElementById('signInCode').focus(), 300);
   }
 
+  // After the code goes in, Lisa looks the employee up through Ned, which can
+  // take a while. Say so, then offer a way out rather than leaving the
+  // button on "Signing in…" for ever.
+  let signInSlowTimers = [];
+  function clearSignInSlow() {
+    signInSlowTimers.forEach(clearTimeout);
+    signInSlowTimers = [];
+    const help = document.getElementById('signInHelp');
+    if (help) help.classList.remove('visible');
+  }
+  function startSignInSlow() {
+    clearSignInSlow();
+    signInSlowTimers.push(setTimeout(() => {
+      if (!employeeSignInPending) return;
+      const btn = document.getElementById('signInCodeBtn');
+      if (btn) btn.textContent = 'Getting your details…';
+    }, 12000));
+    signInSlowTimers.push(setTimeout(() => {
+      if (!employeeSignInPending) return;
+      document.getElementById('signInHelp').classList.add('visible');
+    }, 45000));
+  }
+
   function submitSignInCode() {
     const input = document.getElementById('signInCode');
     const code = input.value.replace(/\s+/g, '');
@@ -2949,6 +3025,7 @@
     err.classList.remove('visible');
     signInCodeSent = true;
     setSignInBusy(true);
+    startSignInSlow();
     webchatStore.dispatch({
       type: 'DIRECT_LINE/POST_ACTIVITY',
       meta: { method: 'keyboard' },
