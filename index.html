@@ -2193,7 +2193,13 @@
     }
     return null;
   }
-  const DOTS_TIMEOUT_MS = 90000;
+  // Some turns (Ned looking people up, checking rooms) take minutes, so
+  // keep waiting with a reassuring caption; only give up at 4 minutes. If
+  // the real reply still arrives after that, the "taking longer" note is
+  // removed again.
+  const DOTS_LONG_WAIT = { after: 45000, text: 'This one is taking a little longer…' };
+  const DOTS_TIMEOUT_MS = 240000;
+  let timeoutMessageId = null;
   let dotsWaitTimers = [];
 
   function clearDotsWait() {
@@ -2210,7 +2216,7 @@
     const plan = dotsCaptionsForTurn
       ? [{ after: 5000, text: dotsCaptionsForTurn[0] }, { after: 15000, text: dotsCaptionsForTurn[1] }]
       : DOTS_CAPTIONS;
-    plan.forEach(({ after, text }) => {
+    plan.concat([DOTS_LONG_WAIT]).forEach(({ after, text }) => {
       dotsWaitTimers.push(setTimeout(() => {
         if (!cap) return;
         cap.textContent = text;
@@ -2223,7 +2229,7 @@
         webchatStore.dispatch({
           type: 'DIRECT_LINE/INCOMING_ACTIVITY',
           payload: { activity: {
-            type: 'message', id: `local-timeout-${Date.now()}`, timestamp: new Date().toISOString(),
+            type: 'message', id: (timeoutMessageId = `local-timeout-${Date.now()}`), timestamp: new Date().toISOString(),
             from: { id: 'lisa', name: 'Lisa', role: 'bot' },
             text: "Sorry, that's taking longer than usual. Please try again.",
             channelData: { synthetic: true },
@@ -2414,6 +2420,13 @@
               activity = { ...activity, text: rest, speak: undefined };
               action = { ...action, payload: { ...action.payload, activity } };
             }
+          }
+
+          if (timeoutMessageId && activity && activity.type === 'message' && activity.from &&
+              activity.from.role === 'bot' && !(activity.channelData && activity.channelData.synthetic)) {
+            const id = timeoutMessageId;
+            timeoutMessageId = null;
+            setTimeout(() => dispatch({ type: 'DIRECT_LINE/DELETE_ACTIVITY', payload: { activityID: id } }), 300);
           }
 
           if (Date.now() < dropBotTextUntil && activity && activity.type === 'message' && activity.from &&
