@@ -1467,7 +1467,7 @@
 
       <div class="sidebar-divider"></div>
 
-      <div class="sidebar-hint">Hi, I'm Lisa — your Intelligent Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
+      <div class="sidebar-hint" id="sidebarHint">Hi, I'm Lisa — your Intelligent Workplace Concierge. I can help with your day at TANDI, and bring in the right specialist for anything more specific:</div>
 
       <!-- Populated by renderSidebarTopics() once the splash choice is made —
            see the SIDEBAR_TOPICS_EMPLOYEE / SIDEBAR_TOPICS_VISITOR arrays in
@@ -2530,7 +2530,7 @@
           // over Direct Line, but it renders as a normal Lisa bubble.
           // Tagged channelData.synthetic so the dots-hide logic above
           // knows to ignore it rather than treating it as the real reply.
-          if (entryRole && ENTRY_WAITING_MESSAGES[entryRole] && !(entryRole === 'employee' && employeeSignInPending)) {
+          if (entryRole && ENTRY_WAITING_MESSAGES[entryRole] && !(entryRole === 'employee' && employeeSignInPending) && !(entryRole === 'visitor' && VISITOR_GATING)) {
             dispatch({
               type: 'DIRECT_LINE/INCOMING_ACTIVITY',
               payload: {
@@ -2821,9 +2821,11 @@
     { label: 'Report a building issue',   chip: 'Report an issue', text: 'I want to report a problem in the building' },
   ];
 
+  // Only things the visitor agent can do today. Add to this list as the
+  // agent gains tools (lunch menu, host notification, building info).
   const SIDEBAR_TOPICS_VISITOR = [
-    { label: 'Find my host',              chip: 'Find my host',   text: 'Where can I find my host?' },
-    { label: 'Check my visit details',    chip: 'My visit',       text: 'What is my visit for?' },
+    { label: 'My visit details',          chip: 'My visit',       text: 'Can you remind me of my visit details?' },
+    { label: 'Directions and parking',    chip: 'Getting here',   text: 'How do I get there, and is there parking for me?' },
     { label: 'Help with room technology', chip: 'Room tech help', text: roomTechHelpText },
     { label: "Something isn't working",   chip: 'Report an issue', text: 'Something is not working' },
   ];
@@ -2831,6 +2833,10 @@
   function renderSidebarTopics(role) {
     const container = document.getElementById('sidebarTopics');
     if (!container) return;
+    const hint = document.getElementById('sidebarHint');
+    if (hint && role === 'visitor') {
+      hint.textContent = "Hi, I'm Lisa, your Intelligent Workplace Concierge. I can help with your visit, from getting here to the room you're meeting in:";
+    }
     const topics = role === 'visitor' ? SIDEBAR_TOPICS_VISITOR : SIDEBAR_TOPICS_EMPLOYEE;
 
     // No inline onclick with interpolated text here — a previous version did
