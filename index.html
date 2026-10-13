@@ -2379,6 +2379,28 @@
     }
   }
 
+  function stripCitations(activity) {
+    const entities = Array.isArray(activity.entities) ? activity.entities : null;
+    const isCitationEntity = e => e && (
+      e.type === 'https://schema.org/Message' || e['@type'] === 'Message' || e['@type'] === 'Claim' ||
+      Array.isArray(e.citation));
+    const keptEntities = entities ? entities.filter(e => !isCitationEntity(e)) : null;
+    const text = typeof activity.text === 'string' ? activity.text : null;
+    let newText = text;
+    if (text) {
+      newText = text
+        .replace(/^\s*\[\d+\]:\s*\S+.*$/gm, '')          // [1]: cite:1 "Title"
+        .replace(/\[(\d+)\](?!\()/g, '')                   // [1] markers
+        .replace(/\[\[(\d+)\]\]\([^)]*\)/g, '')           // [[1]](url)
+        .replace(/[ \t]+([.,;:!?])/g, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trimEnd();
+    }
+    const entitiesChanged = entities && keptEntities.length !== entities.length;
+    if (newText === text && !entitiesChanged) return activity;
+    return { ...activity, text: newText, entities: entities ? keptEntities : activity.entities };
+  }
+
   function createStore() {
     return window.WebChat.createStore(
       {},
@@ -2389,6 +2411,17 @@
         // if the user switches into voice mode mid-conversation).
         if (action.type === 'DIRECT_LINE/INCOMING_ACTIVITY') {
           let activity = action.payload && action.payload.activity;
+
+          // Knowledge answers arrive with citations: [1] markers in the text,
+          // a list of reference definitions at the end, and citation entities
+          // that Web Chat draws as a "1 reference" panel. Remove all three.
+          if (activity && activity.type === 'message' && activity.from && activity.from.role === 'bot') {
+            const cleaned = stripCitations(activity);
+            if (cleaned !== activity) {
+              activity = cleaned;
+              action = { ...action, payload: { ...action.payload, activity } };
+            }
+          }
 
           // Visitor verification marker: act on it, then remove it from the
           // text so it never shows or gets spoken. A message that was only
