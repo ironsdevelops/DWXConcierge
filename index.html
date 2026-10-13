@@ -2821,11 +2821,14 @@
     { label: 'Report a building issue',   chip: 'Report an issue', text: 'I want to report a problem in the building' },
   ];
 
-  // Only things the visitor agent can do today. Add to this list as the
-  // agent gains tools (lunch menu, host notification, building info).
+  // Only things the visitor agent can do: it needs Notify-VisitorHost,
+  // Get-LunchMenu and the building information knowledge source.
   const SIDEBAR_TOPICS_VISITOR = [
     { label: 'My visit details',          chip: 'My visit',       text: 'Can you remind me of my visit details?' },
+    { label: "Let my host know I'm here", chip: 'Tell my host',   text: "I've arrived. Can you let my host know?" },
     { label: 'Directions and parking',    chip: 'Getting here',   text: 'How do I get there, and is there parking for me?' },
+    { label: "What's for lunch?",         chip: 'Lunch',          text: "What's for lunch today?" },
+    { label: 'Wi-Fi and facilities',      chip: 'Wi-Fi & facilities', text: "What's the guest Wi-Fi, and where are the facilities?" },
     { label: 'Help with room technology', chip: 'Room tech help', text: roomTechHelpText },
     { label: "Something isn't working",   chip: 'Report an issue', text: 'Something is not working' },
   ];
