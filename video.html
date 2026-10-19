@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intelligent Workplace Concierge | AVI-SPL</title>
+  <link rel="icon" type="image/png" href="/video-assets/favicon.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* AVI-SPL brand colours */
+    :root {
+      --nightshade: #091D5F;
+      --nightshade-deep: #061445;
+      --cobalt: #0971CE;
+      --turquoise: #25CAD2;
+      --white: #FFFFFF;
+    }
+
+    html { min-height: 100%; }
+
+    body {
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--nightshade);
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Soft circles for depth. Fixed so they never add scrollbars. */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -80px; left: -80px;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: var(--cobalt);
+      opacity: 0.18;
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -60px; right: -60px;
+      width: 240px; height: 240px;
+      border-radius: 50%;
+      background: var(--turquoise);
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 24px 32px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .brand img { height: 34px; width: auto; display: block; }
+
+    /* ── Title ── */
+    .intro {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin: 44px 0 28px;
+    }
+    .intro-arrow {
+      width: 56px;
+      height: auto;
+      flex-shrink: 0;
+    }
+    .intro-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--turquoise);
+      margin-bottom: 8px;
+    }
+    .intro h1 {
+      font-family: 'Arial Black', Arial, sans-serif;
+      font-size: clamp(26px, 4.4vw, 42px);
+      font-weight: 900;
+      line-height: 1.12;
+    }
+    .intro p {
+      margin-top: 10px;
+      font-size: 16px;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.72);
+      max-width: 620px;
+    }
+
+    /* ── Video ── */
+    .video-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: var(--nightshade-deep);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid var(--turquoise);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    .video-frame iframe,
+    .video-frame video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+    .video-frame video { object-fit: contain; }
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    .video-placeholder strong {
+      font-family: 'Arial Black', Arial, sans-serif;
+      font-size: 20px;
+      font-weight: 900;
+    }
+    .video-placeholder span {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.55);
+      max-width: 440px;
+      line-height: 1.5;
+    }
+
+    /* ── Footer ── */
+    .page-footer {
+      margin-top: auto;
+      padding-top: 36px;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 0.03em;
+    }
+    .powered-logo {
+      height: 18px;
+      width: auto;
+      vertical-align: -3px;
+      margin-left: 3px;
+      opacity: 0.75;
+    }
+
+    @media (max-width: 560px) {
+      .page { padding: 20px 16px 24px; }
+      .brand img { height: 28px; }
+      .intro { margin: 32px 0 22px; gap: 14px; }
+      .intro-arrow { width: 40px; }
+      .video-frame { border-radius: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page">
+
+    <header class="brand">
+      <img src="/video-assets/avi-spl-logo-reverse.png" alt="AVI-SPL">
+    </header>
+
+    <section class="intro">
+      <img class="intro-arrow" src="/video-assets/arrow-turquoise.png" alt="">
+      <div>
+        <div class="intro-label">Demo video</div>
+        <h1>Intelligent Workplace Concierge</h1>
+        <p>See how Lisa helps with your day at work, from desks and meetings to visitors and room support.</p>
+      </div>
+    </section>
+
+    <div class="video-frame" id="videoFrame">
+      <div class="video-placeholder" id="videoPlaceholder">
+        <strong>Video coming soon</strong>
+        <span>Set VIDEO_FILE_URL (a video in this repo) or VIDEO_EMBED_URL (a Vimeo, YouTube or Stream link) at the bottom of video.html and the player will appear here.</span>
+      </div>
+    </div>
+
+    <footer class="page-footer">
+      Powered by <img src="/video-assets/copilot-logo.png" alt="Microsoft Copilot" class="powered-logo">
+    </footer>
+
+  </div>
+
+  <script>
+    // Option A: a video file kept in this repo. Put the .mp4 in the repo root and use its path.
+    //   Example: const VIDEO_FILE_URL = '/concierge-demo.mp4';
+    // Option B: a link from a video host (Vimeo, YouTube, Stream). Use the src of the host's iframe code.
+    //   Vimeo:    https://player.vimeo.com/video/123456789?h=abcdef
+    //   YouTube:  https://www.youtube.com/embed/VIDEO_ID?rel=0
+    //   Stream:   the src from SharePoint, Share > Embed
+    // If both are set, the file is used. Leave unused ones blank.
+    const VIDEO_FILE_URL = '';
+    const VIDEO_POSTER_URL = '';   // optional still image shown before play, for example '/concierge-demo-poster.jpg'
+    const VIDEO_EMBED_URL = '';
+    const VIDEO_TITLE = 'Intelligent Workplace Concierge demo';
+
+    (function () {
+      if (!VIDEO_FILE_URL && !VIDEO_EMBED_URL) return;
+      const frame = document.getElementById('videoFrame');
+      const placeholder = document.getElementById('videoPlaceholder');
+      let player;
+
+      if (VIDEO_FILE_URL) {
+        player = document.createElement('video');
+        player.controls = true;
+        player.setAttribute('playsinline', '');
+        player.preload = 'metadata';
+        player.title = VIDEO_TITLE;
+        if (VIDEO_POSTER_URL) player.poster = VIDEO_POSTER_URL;
+        const source = document.createElement('source');
+        source.src = VIDEO_FILE_URL;
+        source.type = 'video/mp4';
+        player.appendChild(source);
+      } else {
+        player = document.createElement('iframe');
+        player.src = VIDEO_EMBED_URL;
+        player.title = VIDEO_TITLE;
+        player.allow = 'autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media';
+        player.setAttribute('allowfullscreen', '');
+        player.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      }
+
+      frame.appendChild(player);
+      if (placeholder) placeholder.remove();
+    })();
+  </script>
+</body>
+</html>
