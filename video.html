@@ -209,10 +209,34 @@
     //   YouTube:  https://www.youtube.com/embed/VIDEO_ID?rel=0
     //   Stream:   the src from SharePoint, Share > Embed
     // If both are set, the file is used. Leave unused ones blank.
-    const VIDEO_FILE_URL = '/concierge-demo.mp4';
+    const VIDEO_FILE_URL = '';
     const VIDEO_POSTER_URL = '';   // optional still image shown before play, for example '/concierge-demo-poster.jpg'
     const VIDEO_EMBED_URL = '';
     const VIDEO_TITLE = 'Intelligent Workplace Concierge demo';
+
+    // Start playing as soon as the page loads. The demo has no sound, so it plays muted, which is
+    // also what browsers require for autoplay. Set to false to wait for the viewer to press play.
+    const VIDEO_AUTOPLAY = true;
+
+    // Adds the autoplay settings to a Vimeo or YouTube embed link. Other hosts (for example Stream)
+    // are left as given.
+    function withAutoplay(url) {
+      try {
+        const u = new URL(url, location.href);
+        if (/youtube(-nocookie)?\.com$/.test(u.hostname)) {
+          u.searchParams.set('autoplay', '1');
+          u.searchParams.set('mute', '1');
+          u.searchParams.set('playsinline', '1');
+        } else if (/vimeo\.com$/.test(u.hostname)) {
+          u.searchParams.set('autoplay', '1');
+          u.searchParams.set('muted', '1');
+          u.searchParams.set('playsinline', '1');
+        }
+        return u.toString();
+      } catch (e) {
+        return url;
+      }
+    }
 
     (function () {
       if (!VIDEO_FILE_URL && !VIDEO_EMBED_URL) return;
@@ -224,16 +248,23 @@
         player = document.createElement('video');
         player.controls = true;
         player.setAttribute('playsinline', '');
-        player.preload = 'metadata';
+        player.preload = VIDEO_AUTOPLAY ? 'auto' : 'metadata';
         player.title = VIDEO_TITLE;
         if (VIDEO_POSTER_URL) player.poster = VIDEO_POSTER_URL;
         const source = document.createElement('source');
         source.src = VIDEO_FILE_URL;
         source.type = 'video/mp4';
         player.appendChild(source);
+
+        if (VIDEO_AUTOPLAY) {
+          player.muted = true;
+          player.setAttribute('muted', '');
+          player.autoplay = true;
+          player.setAttribute('autoplay', '');
+        }
       } else {
         player = document.createElement('iframe');
-        player.src = VIDEO_EMBED_URL;
+        player.src = VIDEO_AUTOPLAY ? withAutoplay(VIDEO_EMBED_URL) : VIDEO_EMBED_URL;
         player.title = VIDEO_TITLE;
         player.allow = 'autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media';
         player.setAttribute('allowfullscreen', '');
